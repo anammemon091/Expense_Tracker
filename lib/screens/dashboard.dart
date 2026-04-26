@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/transaction.dart';
+import '../widgets/allocation_card.dart';
+import '../widgets/spending_chart.dart';
+import 'category_detail_screen.dart';
+import 'settings_screen.dart';
 
 class Dashboard extends StatefulWidget {
   const Dashboard({super.key});
@@ -10,9 +14,10 @@ class Dashboard extends StatefulWidget {
 }
 
 class _DashboardState extends State<Dashboard> {
-  // Reference our opened Hive box
   final _myBox = Hive.box('transactions_box');
   List<Transaction> _transactions = [];
+  
+  final List<String> _categories = ["Housing", "Transport", "Food", "Entertainment", "Other"];
 
   @override
   void initState() {
@@ -20,12 +25,18 @@ class _DashboardState extends State<Dashboard> {
     _loadData();
   }
 
-  // Load data from Hive on startup
+  Map<String, double> get _categoryMap {
+    Map<String, double> data = {};
+    for (var cat in _categories) {
+      data[cat] = _getCategoryTotal(cat);
+    }
+    return data;
+  }
+
   void _loadData() {
     final dynamic data = _myBox.get("TRANSACTION_LIST");
-    if (data != null) {
-      setState(() {
-        // We cast the dynamic list from Hive back to our Transaction model
+    setState(() {
+      if (data != null) {
         _transactions = List<Transaction>.from(
           data.map((item) => Transaction(
                 title: item['title'],
@@ -35,11 +46,12 @@ class _DashboardState extends State<Dashboard> {
                 isExpense: item['isExpense'] ?? true,
               )),
         );
-      });
-    }
+      } else {
+        _transactions = [];
+      }
+    });
   }
 
-  // Save the current state of the list to Hive
   void _saveToHive() {
     final dataToSave = _transactions.map((tx) => {
       'title': tx.title,
@@ -48,8 +60,13 @@ class _DashboardState extends State<Dashboard> {
       'category': tx.category,
       'isExpense': tx.isExpense,
     }).toList();
-    
     _myBox.put("TRANSACTION_LIST", dataToSave);
+  }
+
+  double _getCategoryTotal(String categoryName) {
+    return _transactions
+        .where((tx) => tx.category == categoryName && tx.isExpense)
+        .fold(0.0, (sum, item) => sum + item.amount);
   }
 
   double get _totalBalance {
@@ -60,30 +77,30 @@ class _DashboardState extends State<Dashboard> {
     return total;
   }
 
-  void _addNewTransaction(String title, double amount, bool isExpense) {
+  void _addNewTransaction(String title, double amount, bool isExpense, String category) {
     setState(() {
       _transactions.add(Transaction(
         title: title,
         amount: amount,
         date: DateTime.now(),
-        category: isExpense ? 'Expense' : 'Income',
+        category: category,
         isExpense: isExpense,
       ));
     });
-    _saveToHive(); // Persist data
+    _saveToHive();
   }
 
   void _deleteTransaction(int index) {
     setState(() {
       _transactions.removeAt(index);
     });
-    _saveToHive(); // Update persistence
+    _saveToHive();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[100],
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
         title: const Text('Expense Tracker', style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.white,
@@ -91,46 +108,99 @@ class _DashboardState extends State<Dashboard> {
         elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () => setState(() {}), // Manual UI refresh if needed
-          )
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () async {
+              // Wait for the result from SettingsScreen
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SettingsScreen()),
+              );
+              
+              // Refresh data if something was changed or cleared
+              if (result == true || result == null) {
+                _loadData(); 
+              }
+            },
+          ),
         ],
       ),
-      body: Column(
-        children: [
-          _buildBalanceCard(),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text('Recent Transactions', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+      body: CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(child: _buildBalanceCard()),
+          
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.only(left: 20, top: 10),
+              child: Text('Spending Analysis', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             ),
           ),
-          Expanded(
-            child: _transactions.isEmpty
-                ? const Center(child: Text("No transactions yet!"))
-                : ListView.builder(
-                    itemCount: _transactions.length,
-                    itemBuilder: (context, index) {
-                      // Logic to show newest items at the top
-                      final actualIndex = _transactions.length - 1 - index;
-                      final tx = _transactions[actualIndex];
+          
+          SliverToBoxAdapter(
+            child: _transactions.isEmpty 
+              ? const SizedBox(height: 100, child: Center(child: Text("Add expenses to see analysis"))) 
+              : SpendingChart(categoryData: _categoryMap),
+          ),
 
-                      // STEP 2: SWIPE TO DELETE
-                      return Dismissible(
-                        key: UniqueKey(),
-                        direction: DismissDirection.endToStart,
-                        onDismissed: (direction) => _deleteTransaction(actualIndex),
-                        background: Container(
-                          color: Colors.red,
-                          alignment: Alignment.centerRight,
-                          padding: const EdgeInsets.only(right: 20),
-                          child: const Icon(Icons.delete, color: Colors.white),
-                        ),
-                        child: _buildTransactionItem(tx),
-                      );
-                    },
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.only(left: 20, top: 10, bottom: 10),
+              child: Text('Allocation', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            ),
+          ),
+          
+          SliverToBoxAdapter(
+            child: Column(
+              children: [
+                // Fetching limits from Hive dynamically
+                _buildAllocationWithNavigation(
+                  "Housing", 
+                  _myBox.get('limit_Housing', defaultValue: 1500.0), 
+                  Icons.home_rounded, 
+                  Colors.blue
+                ),
+                _buildAllocationWithNavigation(
+                  "Transport", 
+                  _myBox.get('limit_Transport', defaultValue: 500.0), 
+                  Icons.directions_bus, 
+                  Colors.green
+                ),
+                _buildAllocationWithNavigation(
+                  "Food", 
+                  _myBox.get('limit_Food', defaultValue: 800.0), 
+                  Icons.restaurant, 
+                  Colors.orange
+                ),
+              ],
+            ),
+          ),
+          
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.only(left: 20, top: 20, bottom: 10),
+              child: Text('Recent Transactions', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            ),
+          ),
+          
+          SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                final actualIndex = _transactions.length - 1 - index;
+                final tx = _transactions[actualIndex];
+                return Dismissible(
+                  key: UniqueKey(),
+                  direction: DismissDirection.endToStart,
+                  onDismissed: (direction) => _deleteTransaction(actualIndex),
+                  background: Container(
+                    color: Colors.red,
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 20),
+                    child: const Icon(Icons.delete, color: Colors.white),
                   ),
+                  child: _buildTransactionItem(tx),
+                );
+              },
+              childCount: _transactions.length,
+            ),
           ),
         ],
       ),
@@ -142,7 +212,29 @@ class _DashboardState extends State<Dashboard> {
     );
   }
 
-  // ... [Keep _buildBalanceCard and _buildTransactionItem the same as your previous version] ...
+  Widget _buildAllocationWithNavigation(String category, double limit, IconData icon, Color color) {
+    return GestureDetector(
+      onTap: () async {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => CategoryDetailScreen(
+              category: category,
+              allTransactions: _transactions,
+            ),
+          ),
+        );
+        _loadData(); // Refresh in case transactions were modified
+      },
+      child: AllocationCard(
+        category: category,
+        spentAmount: _getCategoryTotal(category),
+        totalLimit: limit,
+        icon: icon,
+        color: color,
+      ),
+    );
+  }
 
   Widget _buildBalanceCard() {
     return Container(
@@ -199,6 +291,7 @@ class _DashboardState extends State<Dashboard> {
     final titleController = TextEditingController();
     final amountController = TextEditingController();
     bool isExpense = true;
+    String selectedCategory = _categories[0];
 
     showModalBottomSheet(
       context: context,
@@ -220,7 +313,13 @@ class _DashboardState extends State<Dashboard> {
                 decoration: const InputDecoration(labelText: 'Amount'),
                 keyboardType: TextInputType.number,
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 15),
+              DropdownButtonFormField<String>(
+                value: selectedCategory,
+                items: _categories.map((cat) => DropdownMenuItem(value: cat, child: Text(cat))).toList(),
+                onChanged: (val) => setModalState(() => selectedCategory = val!),
+                decoration: const InputDecoration(labelText: 'Category'),
+              ),
               SwitchListTile(
                 title: Text(isExpense ? "Expense" : "Income"),
                 value: isExpense,
@@ -236,7 +335,7 @@ class _DashboardState extends State<Dashboard> {
                     final enteredAmount = double.tryParse(amountController.text) ?? 0.0;
                     if (enteredTitle.isEmpty || enteredAmount <= 0) return;
 
-                    _addNewTransaction(enteredTitle, enteredAmount, isExpense);
+                    _addNewTransaction(enteredTitle, enteredAmount, isExpense, selectedCategory);
                     Navigator.of(context).pop();
                   },
                   style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1e3c72)),

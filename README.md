@@ -1,29 +1,27 @@
-💰 Smart Expense Tracker with Face ID
-An Android-based personal finance manager built with Flutter. This project features Real-time Face Verification using Google ML Kit and local data persistence.
+# HNG Expense Tracker 🚀
 
-🚀 Key Features
-Biometric Security: Real-time face detection stream for secure app entry.
+A modern, high-performance Fintech mobile application built with Flutter. This project demonstrates advanced state management, local persistence with Hive, and a high-fidelity UI inspired by premium financial dashboards.
 
-Local Persistence: Uses Hive NoSQL database to save transactions offline.
+## ✨ Features
 
-Dynamic UI: Live balance calculation and color-coded transaction history.
+- **Dynamic Financial Dashboard**: Real-time balance tracking with gradient-styled cards.
+- **Spending Analysis**: Interactive Pie Chart using `fl_chart` to visualize category-wise expenses.
+- **Allocation Progress Bars**: Visual budget tracking for specific categories (Housing, Food, Transport).
+- **Local Persistence**: Full offline capability using **Hive** for ultra-fast data storage and retrieval.
+- **Biometric Security**: Integration ready for Face ID/Biometric authentication.
+- **Customizable Budgets**: Settings module to edit spending limits per category.
+- **Drill-down Ledger**: Detailed category screens to view specific transaction histories.
 
-Gestures: Swipe-to-delete functionality for easy management.
+## 🛠 Tech Stack
 
-🛠️ Tech Stack
-Frontend: Flutter/Dart
+- **Framework**: [Flutter](https://flutter.dev)
+- **Database**: [Hive](https://pub.dev/packages/hive) (NoSQL local storage)
+- **Charts**: [fl_chart](https://pub.dev/packages/fl_chart)
+- **Icons**: Material Design Icons
 
-AI Engine: Google ML Kit (Face Detection)
-
-Local DB: Hive
-
-Hardware: Camera Image Streaming
-
-⚠️ Build Notes (Windows Fix)
-If you encounter Native Assets or Space in Path errors:
-
-Move the project to a path with no spaces (e.g., C:\projects\).
-
-Set PUB_CACHE environment variable to C:\flutter_cache.
-
-Use Flutter SDK version 3.19 or higher.
+## 📂 Project Structure
+lib/
+├── models/         # Data models (Transaction)
+├── screens/        # UI Screens (Dashboard, Settings, Details)
+├── widgets/        # Reusable UI components (AllocationCard, SpendingChart)
+└── main.dart       # App entry point & Hive initialization
