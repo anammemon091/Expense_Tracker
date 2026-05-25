@@ -1,29 +1,29 @@
-### Expense Tracker 
+# Expense Tracker 
 A modern, high-performance Fintech mobile application built with Flutter. This project demonstrates advanced, dependency-free state management, reactive local persistence with Hive, and an adaptive, high-fidelity UI inspired by minimalist premium financial SaaS designs.
 
 ## Features
 # Dynamic Financial Dashboard: 
 Real-time balance tracking utilizing interactive gradient cards that adapt instantly to global preferences.
 
-# Preference Engine:
+### Preference Engine:
  Centralized state management for application behavior without relying on bulky third-party state packages.
 
-# AMOLED Premium Dark Mode:
+### AMOLED Premium Dark Mode:
  High-contrast, pitch-black themes designed specifically for modern mobile displays to reduce eye strain and optimize battery performance.
 
-# Global Currency Customization: 
+### Global Currency Customization: 
 App-wide reactive currency switching (e.g., $, €, ₨, £) that automatically formats inputs, ledgers, and budgets instantly.
 
-# Spending Analysis:
+### Spending Analysis:
  Interactive visualization using fl_chart to breakdown category-wise expenses dynamically.
 
-# Allocation Progress Tracks:
+### Allocation Progress Tracks:
  Visual budget-to-spend tracking component bars that automatically adapt colors and boundaries depending on active UI theme metrics.
 
-# Local Persistence: 
+### Local Persistence: 
 Ultra-fast NoSQL local database caching utilizing Hive to persist transaction records and retain custom configurations across system lifecycles.
 
-# Biometric Security: 
+### Biometric Security: 
 Seamless integration gate utilizing Face ID/Fingerprint authentication upon application initialization.
 
 ## Architecture & State Flow
@@ -62,17 +62,19 @@ Android Studio / Xcode
 
 Dart SDK
 
-Installation & Run
+## Installation & Run
 Clone the repository
 
-Bash
+```bash
 git clone https://github.com/anammemon091/Expense_Tracker.git
 cd hng_expense_tracker
-Fetch dependencies
 
-Bash
+### Fetch dependencies
+
+```bash
 flutter pub get
-Run the application
 
-Bash
+### Run the application
+
+```bash
 flutter run
