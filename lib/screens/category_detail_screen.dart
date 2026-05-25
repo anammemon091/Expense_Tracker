@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/transaction.dart';
+import '../services/app_state_manager.dart'; // Import your new global state manager
 
 class CategoryDetailScreen extends StatelessWidget {
   final String category;
@@ -24,28 +25,47 @@ class CategoryDetailScreen extends StatelessWidget {
         .where((tx) => tx.isExpense)
         .fold(0.0, (sum, item) => sum + item.amount);
 
+    // Grab the current theme state to handle subtle background containers manually
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: Text('$category Ledger', style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.white,
+        title: Text('$category Ledger', style: const TextStyle(fontWeight: FontWeight.bold)),
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.black),
       ),
       body: Column(
         children: [
-          // Summary Header (Matching Figma style)
+          // Summary Header (Theme-aware container matching Figma layout styles)
           Container(
             padding: const EdgeInsets.all(24),
             width: double.infinity,
-            color: Colors.grey[50],
+            // Uses true surface colors in dark mode or a subtle tint in light mode
+            color: isDark ? const Color(0xFF121212) : Colors.grey[100],
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Total $category Spending', style: TextStyle(color: Colors.grey[600], fontSize: 14)),
+                Text(
+                  'Total $category Spending', 
+                  style: TextStyle(
+                    color: isDark ? Colors.grey[400] : Colors.grey[600], 
+                    fontSize: 14,
+                  ),
+                ),
                 const SizedBox(height: 8),
-                Text('\$${totalSpent.toStringAsFixed(2)}', 
-                  style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Color(0xFF1e3c72))),
+                // Dynamic Global Currency for Total Spent
+                ValueListenableBuilder<String>(
+                  valueListenable: AppStateManager.currencyNotifier,
+                  builder: (context, currencySymbol, child) {
+                    return Text(
+                      '$currencySymbol${totalSpent.toStringAsFixed(2)}', 
+                      style: TextStyle(
+                        fontSize: 32, 
+                        fontWeight: FontWeight.bold, 
+                        color: isDark ? Colors.white : const Color(0xFF1e3c72),
+                      ),
+                    );
+                  },
+                ),
               ],
             ),
           ),
@@ -67,14 +87,19 @@ class CategoryDetailScreen extends StatelessWidget {
                             size: 18,
                           ),
                         ),
-                        title: Text(tx.title, style: const TextStyle(fontWeight: FontWeight.w600)),
                         subtitle: Text(tx.date.toString().split(' ')[0]),
-                        trailing: Text(
-                          '${tx.isExpense ? "-" : "+"}\$${tx.amount.toStringAsFixed(2)}',
-                          style: TextStyle(
-                            color: tx.isExpense ? Colors.red : Colors.green,
-                            fontWeight: FontWeight.bold,
-                          ),
+                        // Dynamic Global Currency for Single Transaction Items
+                        trailing: ValueListenableBuilder<String>(
+                          valueListenable: AppStateManager.currencyNotifier,
+                          builder: (context, currencySymbol, child) {
+                            return Text(
+                              '${tx.isExpense ? "-" : "+"}$currencySymbol${tx.amount.toStringAsFixed(2)}',
+                              style: TextStyle(
+                                color: tx.isExpense ? Colors.red : Colors.green,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            );
+                          },
                         ),
                       );
                     },

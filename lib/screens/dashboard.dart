@@ -3,6 +3,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import '../models/transaction.dart';
 import '../widgets/allocation_card.dart';
 import '../widgets/spending_chart.dart';
+import '../services/app_state_manager.dart'; // Import the global state manager
 import 'category_detail_screen.dart';
 import 'settings_screen.dart';
 
@@ -100,23 +101,19 @@ class _DashboardState extends State<Dashboard> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      // Letting MaterialTheme handle background dynamically based on Light/Dark mode state
       appBar: AppBar(
         title: const Text('Expense Tracker', style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
         elevation: 0,
         actions: [
           IconButton(
             icon: const Icon(Icons.settings_outlined),
             onPressed: () async {
-              // Wait for the result from SettingsScreen
               final result = await Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const SettingsScreen()),
               );
               
-              // Refresh data if something was changed or cleared
               if (result == true || result == null) {
                 _loadData(); 
               }
@@ -151,7 +148,6 @@ class _DashboardState extends State<Dashboard> {
           SliverToBoxAdapter(
             child: Column(
               children: [
-                // Fetching limits from Hive dynamically
                 _buildAllocationWithNavigation(
                   "Housing", 
                   _myBox.get('limit_Housing', defaultValue: 1500.0), 
@@ -224,7 +220,7 @@ class _DashboardState extends State<Dashboard> {
             ),
           ),
         );
-        _loadData(); // Refresh in case transactions were modified
+        _loadData(); 
       },
       child: AllocationCard(
         category: category,
@@ -251,9 +247,15 @@ class _DashboardState extends State<Dashboard> {
         children: [
           const Text('Total Balance', style: TextStyle(color: Colors.white70, fontSize: 16)),
           const SizedBox(height: 10),
-          Text(
-            '\$${_totalBalance.toStringAsFixed(2)}',
-            style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold),
+          // Wrapped with ValueListenableBuilder for dynamic global currency switching
+          ValueListenableBuilder<String>(
+            valueListenable: AppStateManager.currencyNotifier,
+            builder: (context, currencySymbol, child) {
+              return Text(
+                '$currencySymbol${_totalBalance.toStringAsFixed(2)}',
+                style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold),
+              );
+            },
           ),
         ],
       ),
@@ -275,13 +277,19 @@ class _DashboardState extends State<Dashboard> {
         ),
         title: Text(tx.title, style: const TextStyle(fontWeight: FontWeight.bold)),
         subtitle: Text(tx.category),
-        trailing: Text(
-          '${tx.isExpense ? "-" : "+"}\$${tx.amount.toStringAsFixed(2)}',
-          style: TextStyle(
-            color: tx.isExpense ? Colors.red : Colors.green,
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
+        // Wrapped with ValueListenableBuilder for dynamic ledger currency rendering
+        trailing: ValueListenableBuilder<String>(
+          valueListenable: AppStateManager.currencyNotifier,
+          builder: (context, currencySymbol, child) {
+            return Text(
+              '${tx.isExpense ? "-" : "+"}$currencySymbol${tx.amount.toStringAsFixed(2)}',
+              style: TextStyle(
+                color: tx.isExpense ? Colors.red : Colors.green,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
           ),
+        );
+          },
         ),
       ),
     );
@@ -308,10 +316,20 @@ class _DashboardState extends State<Dashboard> {
             children: [
               const Text("Add Transaction", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               TextField(controller: titleController, decoration: const InputDecoration(labelText: 'Title')),
-              TextField(
-                controller: amountController,
-                decoration: const InputDecoration(labelText: 'Amount'),
-                keyboardType: TextInputType.number,
+              
+              // Dynamic Currency Symbol display inside input prefix text
+              ValueListenableBuilder<String>(
+                valueListenable: AppStateManager.currencyNotifier,
+                builder: (context, currencySymbol, child) {
+                  return TextField(
+                    controller: amountController,
+                    decoration: InputDecoration(
+                      labelText: 'Amount',
+                      prefixText: '$currencySymbol ',
+                    ),
+                    keyboardType: TextInputType.number,
+                  );
+                },
               ),
               const SizedBox(height: 15),
               DropdownButtonFormField<String>(

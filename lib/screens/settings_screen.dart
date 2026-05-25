@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import '../services/app_state_manager.dart'; // Import your new global state manager
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -27,12 +28,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
           TextButton(
             onPressed: () async {
+              // Preserve settings configurations across wipes
+              final savedCurrency = _myBox.get('global_currency', defaultValue: '\$');
+              final savedDark = _myBox.get('is_dark_mode', defaultValue: false);
+              
               await _myBox.clear();
+              
+              // Restore preference contexts post clear actions
+              _myBox.put('global_currency', savedCurrency);
+              _myBox.put('is_dark_mode', savedDark);
+
               if (!mounted) return;
               Navigator.pop(ctx);
               Navigator.pop(context, true); 
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("All data has been wiped")),
+                const SnackBar(content: Text("All transaction records have been wiped")),
               );
             }, 
             child: const Text("Clear", style: TextStyle(color: Colors.red))
@@ -42,7 +52,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // New: Function to show the editing popup
   void _showEditLimitDialog(String title, double currentLimit) {
     final controller = TextEditingController(text: currentLimit.toStringAsFixed(0));
 
@@ -50,14 +59,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text("Set $title Limit"),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.number,
-          autofocus: true,
-          decoration: const InputDecoration(
-            prefixText: "\$ ",
-            hintText: "Enter amount",
-          ),
+        content: ValueListenableBuilder<String>(
+          valueListenable: AppStateManager.currencyNotifier,
+          builder: (context, currencySymbol, child) {
+            return TextField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              autofocus: true,
+              decoration: InputDecoration(
+                prefixText: "$currencySymbol ",
+                hintText: "Enter amount",
+              ),
+            );
+          },
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
@@ -66,7 +80,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               final newLimit = double.tryParse(controller.text);
               if (newLimit != null && newLimit >= 0) {
                 setState(() {
-                  // Save directly to Hive using the category name as part of the key
                   _myBox.put('limit_$title', newLimit);
                 });
                 Navigator.pop(ctx);
@@ -79,15 +92,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  void _showCurrencyPicker(BuildContext context, String currentCurrency) {
+    final currencies = ['\$', '€', '£', '¥', '₨', 'د.إ'];
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text("Select Display Currency", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: currencies.length,
+                  itemBuilder: (context, index) {
+                    final cur = currencies[index];
+                    return ListTile(
+                      title: Text(cur, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                      trailing: cur == currentCurrency ? const Icon(Icons.check_circle, color: Colors.teal) : null,
+                      onTap: () {
+                        AppStateManager.updateCurrency(cur);
+                        Navigator.pop(ctx);
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('Settings', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.white,
+        title: const Text('Settings', style: TextStyle(fontWeight: FontWeight.bold)),
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.black),
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),
@@ -101,11 +147,45 @@ class _SettingsScreenState extends State<SettingsScreen> {
             value: _isFaceIDEnabled,
             onChanged: (val) => setState(() => _isFaceIDEnabled = val),
           ),
+          
+          const Divider(),
+          const SizedBox(height: 10),
+          const Text("Preferences", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+          const SizedBox(height: 10),
+
+          // 1. Dynamic Mode Toggle Switch
+          ValueListenableBuilder<ThemeMode>(
+            valueListenable: AppStateManager.themeModeNotifier,
+            builder: (context, currentMode, child) {
+              final isDark = currentMode == ThemeMode.dark;
+              return SwitchListTile(
+                secondary: Icon(isDark ? Icons.dark_mode : Icons.light_mode, color: Colors.purple),
+                title: const Text("AMOLED Dark Mode"),
+                subtitle: const Text("Deep blacks for efficient battery use"),
+                value: isDark,
+                onChanged: (val) => AppStateManager.toggleTheme(val),
+              );
+            },
+          ),
+
+          // 2. Global Currency Customizer Tile
+          ValueListenableBuilder<String>(
+            valueListenable: AppStateManager.currencyNotifier,
+            builder: (context, currentCurrency, child) {
+              return ListTile(
+                leading: const Icon(Icons.monetization_on_outlined, color: Colors.teal),
+                title: const Text("Primary Currency"),
+                subtitle: Text("Currently rendering in ($currentCurrency)"),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () => _showCurrencyPicker(context, currentCurrency),
+              );
+            },
+          ),
+
           const Divider(),
           const SizedBox(height: 10),
           const Text("Budget Limits", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
           
-          // Pass the category name and current value to the builder
           _buildLimitTile("Housing", _housingLimit),
           _buildLimitTile("Transport", _transportLimit),
           _buildLimitTile("Food", _foodLimit),
@@ -126,9 +206,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return ListTile(
       title: Text(title),
       leading: const Icon(Icons.edit_note, color: Colors.grey),
-      trailing: Text(
-        "\$${currentLimit.toStringAsFixed(0)}", 
-        style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1e3c72))
+      trailing: ValueListenableBuilder<String>(
+        valueListenable: AppStateManager.currencyNotifier,
+        builder: (context, currencySymbol, child) {
+          return Text(
+            "$currencySymbol${currentLimit.toStringAsFixed(0)}", 
+            style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1e3c72))
+          );
+        },
       ),
       onTap: () => _showEditLimitDialog(title, currentLimit),
     );

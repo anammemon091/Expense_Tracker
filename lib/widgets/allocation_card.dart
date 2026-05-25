@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/app_state_manager.dart'; // Import your new global state manager
 
 class AllocationCard extends StatelessWidget {
   final String category;
@@ -19,16 +20,19 @@ class AllocationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     double percentage = (spentAmount / totalLimit).clamp(0.0, 1.0);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        // Switches background dynamically to premium pitch dark or crisp white
+        color: isDark ? const Color(0xFF121212) : Colors.white,
         borderRadius: BorderRadius.circular(20),
+        border: isDark ? Border.all(color: Colors.white.withOpacity(0.05), width: 1) : null,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: isDark ? Colors.black.withOpacity(0.4) : Colors.black.withOpacity(0.05),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
@@ -52,9 +56,18 @@ class AllocationCard extends StatelessWidget {
                   ),
                 ],
               ),
-              Text(
-                "\$${spentAmount.toStringAsFixed(0)} / \$${totalLimit.toStringAsFixed(0)}",
-                style: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.w500),
+              // Dynamic Currency System Injection
+              ValueListenableBuilder<String>(
+                valueListenable: AppStateManager.currencyNotifier,
+                builder: (context, currencySymbol, child) {
+                  return Text(
+                    "$currencySymbol${spentAmount.toStringAsFixed(0)} / $currencySymbol${totalLimit.toStringAsFixed(0)}",
+                    style: TextStyle(
+                      color: isDark ? Colors.grey[400] : Colors.grey[600], 
+                      fontWeight: FontWeight.w500,
+                    ),
+                  );
+                },
               ),
             ],
           ),
@@ -66,7 +79,8 @@ class AllocationCard extends StatelessWidget {
                 height: 8,
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  color: Colors.grey[200],
+                  // Dark tracking track bar backgrounds 
+                  color: isDark ? Colors.grey[900] : Colors.grey[200],
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
