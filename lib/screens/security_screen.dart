@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
-import 'package:flutter/foundation.dart'; // Required for WriteBuffer
+import 'package:flutter/foundation.dart'; 
 import 'dashboard.dart';
+import '../services/app_state_manager.dart'; // Import your global state manager
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 
 class SecurityScreen extends StatefulWidget {
@@ -16,7 +17,7 @@ class _SecurityScreenState extends State<SecurityScreen> {
   bool _isInitialized = false;
   bool _isVerifying = false;
   bool _faceDetected = false;
-  bool _isNavigating = false; // Prevents multiple navigation triggers
+  bool _isNavigating = false; 
   String _message = "Align your face in the circle";
 
   final FaceDetector _faceDetector = FaceDetector(
@@ -29,7 +30,23 @@ class _SecurityScreenState extends State<SecurityScreen> {
   @override
   void initState() {
     super.initState();
-    _setupCamera();
+    // Check global state first before spinning up intensive camera hardware
+    _checkBiometricStatus();
+  }
+
+  void _checkBiometricStatus() {
+    // If biometrics are explicitly toggled off in settings, skip directly to Dashboard
+    if (!AppStateManager.biometricNotifier.value) {
+      _isNavigating = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.pushReplacement(
+          context, 
+          MaterialPageRoute(builder: (c) => const Dashboard())
+        );
+      });
+    } else {
+      _setupCamera();
+    }
   }
 
   Future<void> _setupCamera() async {
@@ -46,7 +63,7 @@ class _SecurityScreenState extends State<SecurityScreen> {
         front, 
         ResolutionPreset.medium, 
         enableAudio: false,
-        imageFormatGroup: ImageFormatGroup.nv21, // Better for Android ML Kit
+        imageFormatGroup: ImageFormatGroup.nv21, 
       );
       
       await _controller!.initialize();
@@ -67,7 +84,6 @@ class _SecurityScreenState extends State<SecurityScreen> {
     });
 
     _controller!.startImageStream((CameraImage image) async {
-      // If we already found a face and are moving to the next screen, stop everything
       if (_isNavigating) return; 
 
       try {
@@ -79,7 +95,6 @@ class _SecurityScreenState extends State<SecurityScreen> {
         if (faces.isNotEmpty && mounted && !_isNavigating) {
           _isNavigating = true; 
           
-          // Stop the camera stream immediately to free hardware
           await _controller!.stopImageStream();
 
           setState(() {
@@ -87,7 +102,6 @@ class _SecurityScreenState extends State<SecurityScreen> {
             _message = "Identity Verified!";
           });
 
-          // Short delay so the user sees the "Success" state
           Future.delayed(const Duration(milliseconds: 600), () {
             if (mounted) {
               Navigator.pushReplacement(
@@ -112,8 +126,6 @@ class _SecurityScreenState extends State<SecurityScreen> {
       final bytes = allBytes.done().buffer.asUint8List();
 
       final Size imageSize = Size(image.width.toDouble(), image.height.toDouble());
-      
-      // Most Android front cameras need 270deg rotation for ML Kit to see upright
       const imageRotation = InputImageRotation.rotation270deg; 
       
       final inputImageFormat = InputImageFormatValue.fromRawValue(image.format.raw) 
@@ -138,7 +150,6 @@ class _SecurityScreenState extends State<SecurityScreen> {
 
   @override
   void dispose() {
-    // Ensure stream is stopped if user leaves screen early
     if (_controller != null && _controller!.value.isStreamingImages) {
       _controller!.stopImageStream();
     }
@@ -149,13 +160,17 @@ class _SecurityScreenState extends State<SecurityScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Check theme settings to style canvas backgrounds dynamically
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: const Color(0xFF1e3c72),
+      // Dynamic fallback color schema structures
+      backgroundColor: isDark ? Colors.black : const Color(0xFF1e3c72),
       body: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           const Text(
-            'Face ID', 
+            'Face ID Lock', 
             style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)
           ),
           const SizedBox(height: 10),
@@ -179,7 +194,7 @@ class _SecurityScreenState extends State<SecurityScreen> {
             ),
           ),
           const SizedBox(height: 50),
-          if (!_faceDetected)
+          if (!_faceDetected && _isInitialized)
             SizedBox(
               width: 220,
               height: 50,

@@ -1,5 +1,6 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import '../services/app_state_manager.dart'; // Import your global state manager
 
 class SpendingChart extends StatelessWidget {
   final Map<String, double> categoryData;
@@ -11,17 +12,23 @@ class SpendingChart extends StatelessWidget {
     return Container(
       height: 200,
       padding: const EdgeInsets.all(16),
-      child: PieChart(
-        PieChartData(
-          sectionsSpace: 5,
-          centerSpaceRadius: 40,
-          sections: _buildSections(),
-        ),
+      // Listen to currency changes to redraw chart segment titles reactively
+      child: ValueListenableBuilder<String>(
+        valueListenable: AppStateManager.currencyNotifier,
+        builder: (context, currencySymbol, child) {
+          return PieChart(
+            PieChartData(
+              sectionsSpace: 5,
+              centerSpaceRadius: 40,
+              sections: _buildSections(currencySymbol),
+            ),
+          );
+        },
       ),
     );
   }
 
-  List<PieChartSectionData> _buildSections() {
+  List<PieChartSectionData> _buildSections(String currencySymbol) {
     final List<Color> colors = [Colors.blue, Colors.green, Colors.orange, Colors.purple, Colors.red];
     int index = 0;
 
@@ -33,7 +40,8 @@ class SpendingChart extends StatelessWidget {
       return PieChartSectionData(
         color: color,
         value: entry.value,
-        title: isNotEmpty ? '${entry.key}\n\$${entry.value.toStringAsFixed(0)}' : '',
+        // Replaced hardcoded '$' with dynamic currencySymbol
+        title: isNotEmpty ? '${entry.key}\n$currencySymbol${entry.value.toStringAsFixed(0)}' : '',
         radius: 50,
         titleStyle: const TextStyle(
           fontSize: 10,

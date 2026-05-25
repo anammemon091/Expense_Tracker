@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'screens/security_screen.dart';
-import 'services/app_state_manager.dart'; // Import your new global state manager
+import 'services/app_state_manager.dart'; // Import your global state manager
 
 void main() async {
   // 1. Ensure Flutter bindings are initialized before doing async work
@@ -59,29 +59,33 @@ class ExpenseTrackerApp extends StatelessWidget {
             colorScheme: ColorScheme.fromSeed(
               seedColor: const Color(0xFF1e3c72),
               brightness: Brightness.dark,
-              surface: Colors.black, // Fixes the background deprecation error
+              surface: Colors.black, // Handles background canvas tints
             ),
             appBarTheme: const AppBarTheme(
               backgroundColor: Colors.black,
               foregroundColor: Colors.white,
               elevation: 0,
             ),
+            // FIX: Changed CardTheme to CardThemeData
             cardTheme: const CardThemeData( 
               color: Color(0xFF121212), 
               elevation: 0,
             ),
+            // FIX: Changed DialogTheme to DialogThemeData
             dialogTheme: const DialogThemeData( 
               backgroundColor: Color(0xFF121212),
+              surfaceTintColor: Colors.transparent, // Prevents Material 3 purple overlay on dark dialogs
             ),
           ),
+        
 
           // Link the MaterialApp mode to the notifier value
           themeMode: currentThemeMode,
           
           // Starts with the Face ID security gate
           home: const SecurityScreen(),
-        ); // <-- Fixed: Properly closing the MaterialApp initialization block
-      }, // <-- Fixed: Closing the builder argument block
-    ); // <-- Fixed: Closing the ValueListenableBuilder statement
+        ); 
+      }, 
+    ); 
   }
 }

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import '../services/app_state_manager.dart'; // Import your new global state manager
+import '../services/app_state_manager.dart'; // Import your global state manager
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -11,7 +11,6 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final _myBox = Hive.box('transactions_box');
-  bool _isFaceIDEnabled = true;
 
   // Load saved limits from Hive or use defaults if they don't exist
   double get _housingLimit => _myBox.get('limit_Housing', defaultValue: 1500.0);
@@ -31,12 +30,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               // Preserve settings configurations across wipes
               final savedCurrency = _myBox.get('global_currency', defaultValue: '\$');
               final savedDark = _myBox.get('is_dark_mode', defaultValue: false);
+              final savedBiometrics = _myBox.get('is_biometric_enabled', defaultValue: true);
               
               await _myBox.clear();
               
               // Restore preference contexts post clear actions
               _myBox.put('global_currency', savedCurrency);
               _myBox.put('is_dark_mode', savedDark);
+              _myBox.put('is_biometric_enabled', savedBiometrics);
 
               if (!mounted) return;
               Navigator.pop(ctx);
@@ -140,12 +141,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
         children: [
           const Text("Security", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
           const SizedBox(height: 10),
-          SwitchListTile(
-            secondary: const Icon(Icons.face_unlock_rounded, color: Colors.blue),
-            title: const Text("Biometric Authentication"),
-            subtitle: const Text("Face ID verification for access"),
-            value: _isFaceIDEnabled,
-            onChanged: (val) => setState(() => _isFaceIDEnabled = val),
+          
+          // Fixed: Biometric Authentication Switch connected to Global State Manager
+          ValueListenableBuilder<bool>(
+            valueListenable: AppStateManager.biometricNotifier,
+            builder: (context, isBiometricEnabled, child) {
+              return SwitchListTile(
+                secondary: const Icon(Icons.face_unlock_rounded, color: Colors.blue),
+                title: const Text("Biometric Authentication"),
+                subtitle: const Text("Face ID verification for access"),
+                value: isBiometricEnabled,
+                onChanged: (val) => AppStateManager.toggleBiometrics(val),
+              );
+            },
           ),
           
           const Divider(),
