@@ -2,7 +2,7 @@
 A modern, high-performance Fintech mobile application built with Flutter. This project demonstrates advanced, dependency-free state management, reactive local persistence with Hive, and an adaptive, high-fidelity UI inspired by minimalist premium financial SaaS designs.
 
 ## Features
-# Dynamic Financial Dashboard: 
+### Dynamic Financial Dashboard: 
 Real-time balance tracking utilizing interactive gradient cards that adapt instantly to global preferences.
 
 ### Preference Engine:
@@ -71,10 +71,8 @@ cd hng_expense_tracker
 
 ### Fetch dependencies
 
-```bash
 flutter pub get
 
 ### Run the application
 
-```bash
 flutter run
