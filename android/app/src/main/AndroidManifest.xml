@@ -5,7 +5,7 @@
     <uses-feature android:name="android.hardware.camera.autofocus" />
 
     <application
-        android:label="hng_expense_tracker"
+        android:label="Expense Tracker"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

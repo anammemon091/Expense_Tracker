@@ -3,7 +3,8 @@ import 'package:hive_flutter/hive_flutter.dart';
 import '../models/transaction.dart';
 import '../widgets/allocation_card.dart';
 import '../widgets/spending_chart.dart';
-import '../services/app_state_manager.dart'; // Import the global state manager
+import '../widgets/timeline_selector.dart';
+import '../services/app_state_manager.dart';
 import 'category_detail_screen.dart';
 import 'settings_screen.dart';
 
@@ -16,7 +17,7 @@ class Dashboard extends StatefulWidget {
 
 class _DashboardState extends State<Dashboard> {
   final _myBox = Hive.box('transactions_box');
-  List<Transaction> _transactions = [];
+  List<Transaction> _allTransactions = []; // Raw array reflecting disk state
   
   final List<String> _categories = ["Housing", "Transport", "Food", "Entertainment", "Other"];
 
@@ -26,10 +27,13 @@ class _DashboardState extends State<Dashboard> {
     _loadData();
   }
 
-  Map<String, double> get _categoryMap {
+  // Generate category chart allocations mapped strictly against the active sorting window
+  Map<String, double> _getCategoryMapForFiltered(List<Transaction> filteredList) {
     Map<String, double> data = {};
     for (var cat in _categories) {
-      data[cat] = _getCategoryTotal(cat);
+      data[cat] = filteredList
+          .where((tx) => tx.category == cat && tx.isExpense)
+          .fold(0.0, (sum, item) => sum + item.amount);
     }
     return data;
   }
@@ -38,7 +42,7 @@ class _DashboardState extends State<Dashboard> {
     final dynamic data = _myBox.get("TRANSACTION_LIST");
     setState(() {
       if (data != null) {
-        _transactions = List<Transaction>.from(
+        _allTransactions = List<Transaction>.from(
           data.map((item) => Transaction(
                 title: item['title'],
                 amount: item['amount'],
@@ -48,13 +52,13 @@ class _DashboardState extends State<Dashboard> {
               )),
         );
       } else {
-        _transactions = [];
+        _allTransactions = [];
       }
     });
   }
 
   void _saveToHive() {
-    final dataToSave = _transactions.map((tx) => {
+    final dataToSave = _allTransactions.map((tx) => {
       'title': tx.title,
       'amount': tx.amount,
       'date': tx.date.toIso8601String(),
@@ -64,15 +68,10 @@ class _DashboardState extends State<Dashboard> {
     _myBox.put("TRANSACTION_LIST", dataToSave);
   }
 
-  double _getCategoryTotal(String categoryName) {
-    return _transactions
-        .where((tx) => tx.category == categoryName && tx.isExpense)
-        .fold(0.0, (sum, item) => sum + item.amount);
-  }
-
-  double get _totalBalance {
+  // Calculate dynamic balance aggregates for the scoped timeline view frame
+  double _calculateFilteredBalance(List<Transaction> filteredList) {
     double total = 0.0;
-    for (var tx in _transactions) {
+    for (var tx in filteredList) {
       tx.isExpense ? total -= tx.amount : total += tx.amount;
     }
     return total;
@@ -80,7 +79,7 @@ class _DashboardState extends State<Dashboard> {
 
   void _addNewTransaction(String title, double amount, bool isExpense, String category) {
     setState(() {
-      _transactions.add(Transaction(
+      _allTransactions.add(Transaction(
         title: title,
         amount: amount,
         date: DateTime.now(),
@@ -91,9 +90,9 @@ class _DashboardState extends State<Dashboard> {
     _saveToHive();
   }
 
-  void _deleteTransaction(int index) {
+  void _deleteTransaction(Transaction targetTx) {
     setState(() {
-      _transactions.removeAt(index);
+      _allTransactions.remove(targetTx);
     });
     _saveToHive();
   }
@@ -101,7 +100,6 @@ class _DashboardState extends State<Dashboard> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Letting MaterialTheme handle background dynamically based on Light/Dark mode state
       appBar: AppBar(
         title: const Text('Expense Tracker', style: TextStyle(fontWeight: FontWeight.bold)),
         elevation: 0,
@@ -121,84 +119,110 @@ class _DashboardState extends State<Dashboard> {
           ),
         ],
       ),
-      body: CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(child: _buildBalanceCard()),
-          
-          const SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.only(left: 20, top: 10),
-              child: Text('Spending Analysis', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            ),
-          ),
-          
-          SliverToBoxAdapter(
-            child: _transactions.isEmpty 
-              ? const SizedBox(height: 100, child: Center(child: Text("Add expenses to see analysis"))) 
-              : SpendingChart(categoryData: _categoryMap),
-          ),
+      // Reactive binding layer feeding sorted timelines out down through the layout builder
+      body: ValueListenableBuilder<TimelineFilter>(
+        valueListenable: AppStateManager.activeFilterNotifier,
+        builder: (context, currentFilter, child) {
+          // Process calculations using the model helper from Step 2
+          final filteredTransactions = filterTransactionsByTimeline(_allTransactions, currentFilter);
+          final scopedCategoryMap = _getCategoryMapForFiltered(filteredTransactions);
+          final scopedBalance = _calculateFilteredBalance(filteredTransactions);
 
-          const SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.only(left: 20, top: 10, bottom: 10),
-              child: Text('Allocation', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            ),
-          ),
-          
-          SliverToBoxAdapter(
-            child: Column(
-              children: [
-                _buildAllocationWithNavigation(
-                  "Housing", 
-                  _myBox.get('limit_Housing', defaultValue: 1500.0), 
-                  Icons.home_rounded, 
-                  Colors.blue
+          return CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(child: _buildBalanceCard(scopedBalance)),
+              
+              // Segment Track Added: Interactive Dashboard Filter track
+              const SliverToBoxAdapter(child: TimelineSelector()),
+              
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.only(left: 20, top: 15),
+                  child: Text('Spending Analysis', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                 ),
-                _buildAllocationWithNavigation(
-                  "Transport", 
-                  _myBox.get('limit_Transport', defaultValue: 500.0), 
-                  Icons.directions_bus, 
-                  Colors.green
+              ),
+              
+              SliverToBoxAdapter(
+                child: filteredTransactions.isEmpty 
+                  ? const SizedBox(height: 140, child: Center(child: Text("No data inside this interval frame"))) 
+                  : SpendingChart(categoryData: scopedCategoryMap),
+              ),
+
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.only(left: 20, top: 10, bottom: 10),
+                  child: Text('Allocation', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                 ),
-                _buildAllocationWithNavigation(
-                  "Food", 
-                  _myBox.get('limit_Food', defaultValue: 800.0), 
-                  Icons.restaurant, 
-                  Colors.orange
+              ),
+              
+              SliverToBoxAdapter(
+                child: Column(
+                  children: [
+                    _buildAllocationWithNavigation(
+                      "Housing", 
+                      _myBox.get('limit_Housing', defaultValue: 1500.0), 
+                      Icons.home_rounded, 
+                      Colors.blue,
+                      scopedCategoryMap["Housing"] ?? 0.0
+                    ),
+                    _buildAllocationWithNavigation(
+                      "Transport", 
+                      _myBox.get('limit_Transport', defaultValue: 500.0), 
+                      Icons.directions_bus, 
+                      Colors.green,
+                      scopedCategoryMap["Transport"] ?? 0.0
+                    ),
+                    _buildAllocationWithNavigation(
+                      "Food", 
+                      _myBox.get('limit_Food', defaultValue: 800.0), 
+                      Icons.restaurant, 
+                      Colors.orange,
+                      scopedCategoryMap["Food"] ?? 0.0
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
-          
-          const SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.only(left: 20, top: 20, bottom: 10),
-              child: Text('Recent Transactions', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            ),
-          ),
-          
-          SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                final actualIndex = _transactions.length - 1 - index;
-                final tx = _transactions[actualIndex];
-                return Dismissible(
-                  key: UniqueKey(),
-                  direction: DismissDirection.endToStart,
-                  onDismissed: (direction) => _deleteTransaction(actualIndex),
-                  background: Container(
-                    color: Colors.red,
-                    alignment: Alignment.centerRight,
-                    padding: const EdgeInsets.only(right: 20),
-                    child: const Icon(Icons.delete, color: Colors.white),
-                  ),
-                  child: _buildTransactionItem(tx),
-                );
-              },
-              childCount: _transactions.length,
-            ),
-          ),
-        ],
+              ),
+              
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.only(left: 20, top: 20, bottom: 10),
+                  child: Text('Interval Ledger Records', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                ),
+              ),
+              
+              filteredTransactions.isEmpty
+                  ? const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.all(30),
+                        child: Center(child: Text("Empty stream timeline frame")),
+                      ),
+                    )
+                  : SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          // Render items in clean reversed chronological order (newest on top)
+                          final actualIndex = filteredTransactions.length - 1 - index;
+                          final tx = filteredTransactions[actualIndex];
+                          
+                          return Dismissible(
+                            key: Key(tx.date.toIso8601String() + tx.title),
+                            direction: DismissDirection.endToStart,
+                            onDismissed: (direction) => _deleteTransaction(tx),
+                            background: Container(
+                              color: Colors.red,
+                              alignment: Alignment.centerRight,
+                              padding: const EdgeInsets.only(right: 20),
+                              child: const Icon(Icons.delete, color: Colors.white),
+                            ),
+                            child: _buildTransactionItem(tx),
+                          );
+                        },
+                        childCount: filteredTransactions.length,
+                      ),
+                    ),
+            ],
+          );
+        },
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddModal(context),
@@ -208,7 +232,7 @@ class _DashboardState extends State<Dashboard> {
     );
   }
 
-  Widget _buildAllocationWithNavigation(String category, double limit, IconData icon, Color color) {
+  Widget _buildAllocationWithNavigation(String category, double limit, IconData icon, Color color, double categorySpent) {
     return GestureDetector(
       onTap: () async {
         await Navigator.push(
@@ -216,7 +240,7 @@ class _DashboardState extends State<Dashboard> {
           MaterialPageRoute(
             builder: (context) => CategoryDetailScreen(
               category: category,
-              allTransactions: _transactions,
+              allTransactions: _allTransactions,
             ),
           ),
         );
@@ -224,7 +248,7 @@ class _DashboardState extends State<Dashboard> {
       },
       child: AllocationCard(
         category: category,
-        spentAmount: _getCategoryTotal(category),
+        spentAmount: categorySpent, // Dynamic contextual parameter value updates
         totalLimit: limit,
         icon: icon,
         color: color,
@@ -232,7 +256,7 @@ class _DashboardState extends State<Dashboard> {
     );
   }
 
-  Widget _buildBalanceCard() {
+  Widget _buildBalanceCard(double balanceAmount) {
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.all(20),
@@ -245,14 +269,13 @@ class _DashboardState extends State<Dashboard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Total Balance', style: TextStyle(color: Colors.white70, fontSize: 16)),
+          const Text('Interval Total Balance', style: TextStyle(color: Colors.white70, fontSize: 16)),
           const SizedBox(height: 10),
-          // Wrapped with ValueListenableBuilder for dynamic global currency switching
           ValueListenableBuilder<String>(
             valueListenable: AppStateManager.currencyNotifier,
             builder: (context, currencySymbol, child) {
               return Text(
-                '$currencySymbol${_totalBalance.toStringAsFixed(2)}',
+                '$currencySymbol${balanceAmount.toStringAsFixed(2)}',
                 style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold),
               );
             },
@@ -277,7 +300,6 @@ class _DashboardState extends State<Dashboard> {
         ),
         title: Text(tx.title, style: const TextStyle(fontWeight: FontWeight.bold)),
         subtitle: Text(tx.category),
-        // Wrapped with ValueListenableBuilder for dynamic ledger currency rendering
         trailing: ValueListenableBuilder<String>(
           valueListenable: AppStateManager.currencyNotifier,
           builder: (context, currencySymbol, child) {
@@ -287,8 +309,8 @@ class _DashboardState extends State<Dashboard> {
                 color: tx.isExpense ? Colors.red : Colors.green,
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
-          ),
-        );
+              ),
+            );
           },
         ),
       ),
@@ -316,8 +338,6 @@ class _DashboardState extends State<Dashboard> {
             children: [
               const Text("Add Transaction", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               TextField(controller: titleController, decoration: const InputDecoration(labelText: 'Title')),
-              
-              // Dynamic Currency Symbol display inside input prefix text
               ValueListenableBuilder<String>(
                 valueListenable: AppStateManager.currencyNotifier,
                 builder: (context, currencySymbol, child) {
