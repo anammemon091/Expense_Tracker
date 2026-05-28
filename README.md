@@ -2,32 +2,32 @@
 A modern, high-performance Fintech mobile application built with the Flutter framework. This project demonstrates advanced, dependency-free state management, reactive local persistence with Hive, and an adaptive, high-fidelity UI inspired by minimalist premium financial SaaS designs.
 
 ## Features
-### Dynamic Financial Dashboard
-Real-time balance tracking utilizing interactive gradient cards that adapt instantly to global preference changes.
+### 🛠️ Dynamic Category Engine
+Pure hardcoded structures are eliminated. The system features a fully state-driven mapping layout, allowing users to inject, modify, and manage custom transaction tags equipped with distinctive color themes and customizable visual icon profiles straight from the settings context.
 
-### Interval Timeline Filtering
-Interactive, contextual interval sorting across the entire app workspace. Users can jump between This Week, This Month, and All Time view scopes to update ledger cards, total balance aggregates, and visual pie charts on the fly.
+### 📊 Reactive Expense Analytics & Pie Charts
+Dynamic telemetry data visualization leveraging the `fl_chart` library. The dashboard segment automatically mirrors runtime lookup values, matching segment slices instantly with the custom colors defined in your active categories while automatically filtering out zero-value channels.
 
-### Custom Preference Engine
-Centralized state management for application behavior and configuration streams without relying on bulky third-party state packages or complex boilerplates.
+### 📈 Smart Budget Allocation Tracks
+Visual budget-to-spend tracking component bars that automatically recalculate remaining allowance boundaries on the fly. The engine monitors multi-currency updates reactively and flashes immediate, high-fidelity structural warning indicators if any dynamic category crosses into an over-budget threshold.
 
-### AMOLED Premium Dark Mode
+### 🕒 Interval Timeline Filtering
+Interactive, contextual interval sorting across the entire app workspace. Users can jump between This Week, This Month, and All Time view scopes to update ledger cards, total balance aggregates, and visual pie charts dynamically.
+
+### ⚙️ Centralized Custom Preference Engine
+Decoupled state architecture managing multi-currency toggles (e.g., $, €, ₨, £), timeline states, and interface behavioral configurations without adding bulky third-party boilerplate frameworks.
+
+### 🔌 AMOLED Premium Dark Mode
 High-contrast, pitch-black themes designed specifically for modern mobile AMOLED displays to drastically reduce eye strain and optimize battery power profiles.
 
-### Global Currency Customization
-App-wide reactive currency switching (e.g., $, €, ₨, £) that automatically filters and formats text field input prefixes, ledger tiles, and analytics instantly.
-
-### Spending Analysis
-Interactive telemetry data visualization using the fl_chart library to break down category-wise expense proportions dynamically with reactive legends.
-
-### Allocation Progress Tracks
-Visual budget-to-spend tracking component bars that automatically recalculate boundaries and shift indicator colors depending on active UI theme metrics.
-
-### Biometric Gate & Core Security
+### 🔒 Biometric Gate & Core Security
 Seamless security verification layer utilizing on-device computer vision for face detection upon application initialization. The state layer handles a secure bypass condition—automatically routing users straight to the dashboard if biometrics are explicitly deactivated in app settings.
 
-### Local NoSQL Persistence
+### 💾 Local NoSQL Persistence
 Ultra-fast local database caching utilizing Hive to stream raw binary transaction objects and retain global preference metrics instantly across app system lifecycles.
+
+## Architecture & State Flow
+The application relies on a completely decoupled, reactive architectural pipeline. Instead of introducing heavy state management overhead, it solves cross-module communication cleanly using Flutter's native ValueNotifier pattern combined with Hive for synchronous disk persistence.
 
 ## Architecture & State Flow
 The application relies on a completely decoupled, reactive architectural pipeline. Instead of introducing heavy state management overhead, it solves cross-module communication cleanly using Flutter's native ValueNotifier pattern combined with Hive for synchronous disk persistence.

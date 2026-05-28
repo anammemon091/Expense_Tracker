@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import '../models/category_item.dart'; // Import your new CategoryItem model
 
-// 1. Explicitly declaration of the timeline sorting parameters
+// Explicit declaration of the timeline sorting parameters
 enum TimelineFilter { week, month, allTime }
 
 class AppStateManager {
   static final _myBox = Hive.box('transactions_box');
+  // Handle to the dynamic categories storage box
+  static final _categoriesBox = Hive.box<CategoryItem>('categories_box');
 
   // --- ValueNotifiers that UI components can listen to globally ---
   
@@ -19,9 +22,13 @@ class AppStateManager {
   static final ValueNotifier<bool> biometricNotifier = 
       ValueNotifier(_myBox.get('is_biometric_enabled', defaultValue: true));
 
-  // New: Global timeline notifier targeting dashboard list sorting filters
+  // Global timeline notifier targeting dashboard list sorting filters
   static final ValueNotifier<TimelineFilter> activeFilterNotifier = 
       ValueNotifier<TimelineFilter>(TimelineFilter.allTime);
+
+  // New: Global category listener initialized with current persisted box values
+  static final ValueNotifier<List<CategoryItem>> categoriesNotifier = 
+      ValueNotifier<List<CategoryItem>>(_categoriesBox.values.toList());
 
   // --- Helper to map string/bool to ThemeMode on launch ---
   static ThemeMode _loadThemeMode() {
@@ -49,8 +56,20 @@ class AppStateManager {
     _myBox.put('is_biometric_enabled', enabled);
   }
 
-  // New: Core implementation for updating current calendar timelines
+  // Core implementation for updating current calendar timelines
   static void updateTimelineFilter(TimelineFilter newFilter) {
     activeFilterNotifier.value = newFilter;
+  }
+
+  // New: Action method to save a dynamic category and update UI pipelines
+  static void addCustomCategory(CategoryItem item) {
+    _categoriesBox.put(item.name, item);
+    categoriesNotifier.value = _categoriesBox.values.toList(); // Forces listeners to rebuild
+  }
+
+  // New: Action method to drop a category from storage and push update
+  static void deleteCategory(String categoryName) {
+    _categoriesBox.delete(categoryName);
+    categoriesNotifier.value = _categoriesBox.values.toList(); // Forces listeners to rebuild
   }
 }

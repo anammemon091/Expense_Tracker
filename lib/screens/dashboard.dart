@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/transaction.dart';
+import '../models/category_item.dart';
 import '../widgets/allocation_card.dart';
 import '../widgets/spending_chart.dart';
 import '../widgets/timeline_selector.dart';
@@ -18,8 +19,6 @@ class Dashboard extends StatefulWidget {
 class _DashboardState extends State<Dashboard> {
   final _myBox = Hive.box('transactions_box');
   List<Transaction> _allTransactions = []; // Raw array reflecting disk state
-  
-  final List<String> _categories = ["Housing", "Transport", "Food", "Entertainment", "Other"];
 
   @override
   void initState() {
@@ -27,12 +26,15 @@ class _DashboardState extends State<Dashboard> {
     _loadData();
   }
 
-  // Generate category chart allocations mapped strictly against the active sorting window
-  Map<String, double> _getCategoryMapForFiltered(List<Transaction> filteredList) {
+  // Generate category chart allocations mapped strictly against the active sorting window dynamically
+  Map<String, double> _getCategoryMapForFiltered(
+    List<Transaction> filteredList, 
+    List<CategoryItem> availableCategories
+  ) {
     Map<String, double> data = {};
-    for (var cat in _categories) {
-      data[cat] = filteredList
-          .where((tx) => tx.category == cat && tx.isExpense)
+    for (var cat in availableCategories) {
+      data[cat.name] = filteredList
+          .where((tx) => tx.category.toLowerCase() == cat.name.toLowerCase() && tx.isExpense)
           .fold(0.0, (sum, item) => sum + item.amount);
     }
     return data;
@@ -102,6 +104,7 @@ class _DashboardState extends State<Dashboard> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Expense Tracker', style: TextStyle(fontWeight: FontWeight.bold)),
+        centerTitle: true,
         elevation: 0,
         actions: [
           IconButton(
@@ -119,108 +122,118 @@ class _DashboardState extends State<Dashboard> {
           ),
         ],
       ),
-      // Reactive binding layer feeding sorted timelines out down through the layout builder
-      body: ValueListenableBuilder<TimelineFilter>(
-        valueListenable: AppStateManager.activeFilterNotifier,
-        builder: (context, currentFilter, child) {
-          // Process calculations using the model helper from Step 2
-          final filteredTransactions = filterTransactionsByTimeline(_allTransactions, currentFilter);
-          final scopedCategoryMap = _getCategoryMapForFiltered(filteredTransactions);
-          final scopedBalance = _calculateFilteredBalance(filteredTransactions);
+      body: ValueListenableBuilder<List<CategoryItem>>(
+        valueListenable: AppStateManager.categoriesNotifier,
+        builder: (context, availableCategories, child) {
+          return ValueListenableBuilder<TimelineFilter>(
+            valueListenable: AppStateManager.activeFilterNotifier,
+            builder: (context, currentFilter, child) {
+              
+              // Pipeline calculations using the unified helper
+              final filteredTransactions = filterTransactionsByTimeline(_allTransactions, currentFilter);
+              final scopedCategoryMap = _getCategoryMapForFiltered(filteredTransactions, availableCategories);
+              final scopedBalance = _calculateFilteredBalance(filteredTransactions);
 
-          return CustomScrollView(
-            slivers: [
-              SliverToBoxAdapter(child: _buildBalanceCard(scopedBalance)),
-              
-              // Segment Track Added: Interactive Dashboard Filter track
-              const SliverToBoxAdapter(child: TimelineSelector()),
-              
-              const SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.only(left: 20, top: 15),
-                  child: Text('Spending Analysis', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                ),
-              ),
-              
-              SliverToBoxAdapter(
-                child: filteredTransactions.isEmpty 
-                  ? const SizedBox(height: 140, child: Center(child: Text("No data inside this interval frame"))) 
-                  : SpendingChart(categoryData: scopedCategoryMap),
-              ),
+              return CustomScrollView(
+                slivers: [
+                  SliverToBoxAdapter(child: _buildBalanceCard(scopedBalance)),
+                  
+                  // Interactive Dashboard Timeline Selector track
+                  const SliverToBoxAdapter(child: TimelineSelector()),
+                  
+                  const SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.only(left: 20, top: 15),
+                      child: Text('Spending Analysis', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                  
+                  SliverToBoxAdapter(
+                    child: filteredTransactions.isEmpty 
+                        ? const SizedBox(height: 140, child: Center(child: Text("No data inside this interval frame"))) 
+                        : SpendingChart(categoryData: scopedCategoryMap),
+                  ),
 
-              const SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.only(left: 20, top: 10, bottom: 10),
-                  child: Text('Allocation', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                ),
-              ),
-              
-              SliverToBoxAdapter(
-                child: Column(
-                  children: [
-                    _buildAllocationWithNavigation(
-                      "Housing", 
-                      _myBox.get('limit_Housing', defaultValue: 1500.0), 
-                      Icons.home_rounded, 
-                      Colors.blue,
-                      scopedCategoryMap["Housing"] ?? 0.0
+                  const SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.only(left: 20, top: 15, bottom: 10),
+                      child: Text('Allocation Limits', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                     ),
-                    _buildAllocationWithNavigation(
-                      "Transport", 
-                      _myBox.get('limit_Transport', defaultValue: 500.0), 
-                      Icons.directions_bus, 
-                      Colors.green,
-                      scopedCategoryMap["Transport"] ?? 0.0
-                    ),
-                    _buildAllocationWithNavigation(
-                      "Food", 
-                      _myBox.get('limit_Food', defaultValue: 800.0), 
-                      Icons.restaurant, 
-                      Colors.orange,
-                      scopedCategoryMap["Food"] ?? 0.0
-                    ),
-                  ],
-                ),
-              ),
-              
-              const SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.only(left: 20, top: 20, bottom: 10),
-                  child: Text('Interval Ledger Records', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                ),
-              ),
-              
-              filteredTransactions.isEmpty
-                  ? const SliverToBoxAdapter(
-                      child: Padding(
-                        padding: EdgeInsets.all(30),
-                        child: Center(child: Text("Empty stream timeline frame")),
-                      ),
-                    )
-                  : SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) {
-                          // Render items in clean reversed chronological order (newest on top)
-                          final actualIndex = filteredTransactions.length - 1 - index;
-                          final tx = filteredTransactions[actualIndex];
-                          
-                          return Dismissible(
-                            key: Key(tx.date.toIso8601String() + tx.title),
-                            direction: DismissDirection.endToStart,
-                            onDismissed: (direction) => _deleteTransaction(tx),
-                            background: Container(
-                              color: Colors.red,
-                              alignment: Alignment.centerRight,
-                              padding: const EdgeInsets.only(right: 20),
-                              child: const Icon(Icons.delete, color: Colors.white),
+                  ),
+                  
+                  // Dynamic Allocation Progress Track mapping directly from Hive states
+                  SliverToBoxAdapter(
+                    child: availableCategories.isEmpty
+                        ? const Center(child: Text("No categories found. Configure in Settings."))
+                        : Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            child: Column(
+                              children: availableCategories.map((category) {
+                                final double categoryTotalSpend = scopedCategoryMap[category.name] ?? 0.0;
+
+                                return GestureDetector(
+                                  onTap: () async {
+                                    await Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => CategoryDetailScreen(
+                                          category: category.name,
+                                          allTransactions: _allTransactions,
+                                        ),
+                                      ),
+                                    );
+                                    _loadData(); 
+                                  },
+                                  child: AllocationCard(
+                                    category: category,
+                                    currentSpend: categoryTotalSpend,
+                                  ),
+                                );
+                              }).toList(),
                             ),
-                            child: _buildTransactionItem(tx),
-                          );
-                        },
-                        childCount: filteredTransactions.length,
-                      ),
+                          ),
+                  ),
+                  
+                  const SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.only(left: 20, top: 20, bottom: 10),
+                      child: Text('Ledger Records', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                     ),
-            ],
+                  ),
+                  
+                  filteredTransactions.isEmpty
+                      ? const SliverToBoxAdapter(
+                          child: Padding(
+                            padding: EdgeInsets.all(30),
+                            child: Center(child: Text("Empty stream timeline frame")),
+                          ),
+                        )
+                      : SliverList(
+                          delegate: SliverChildBuilderDelegate(
+                            (context, index) {
+                              // Render items in clean reversed chronological order (newest on top)
+                              final actualIndex = filteredTransactions.length - 1 - index;
+                              final tx = filteredTransactions[actualIndex];
+                              
+                              return Dismissible(
+                                key: Key(tx.date.toIso8601String() + tx.title + tx.amount.toString()),
+                                direction: DismissDirection.endToStart,
+                                onDismissed: (direction) => _deleteTransaction(tx),
+                                background: Container(
+                                  color: Colors.red,
+                                  alignment: Alignment.centerRight,
+                                  padding: const EdgeInsets.only(right: 20),
+                                  child: const Icon(Icons.delete, color: Colors.white),
+                                ),
+                                child: _buildTransactionItem(tx),
+                              );
+                            },
+                            childCount: filteredTransactions.length,
+                          ),
+                        ),
+                ],
+              );
+            },
           );
         },
       ),
@@ -228,30 +241,6 @@ class _DashboardState extends State<Dashboard> {
         onPressed: () => _showAddModal(context),
         backgroundColor: const Color(0xFF1e3c72),
         child: const Icon(Icons.add, color: Colors.white),
-      ),
-    );
-  }
-
-  Widget _buildAllocationWithNavigation(String category, double limit, IconData icon, Color color, double categorySpent) {
-    return GestureDetector(
-      onTap: () async {
-        await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => CategoryDetailScreen(
-              category: category,
-              allTransactions: _allTransactions,
-            ),
-          ),
-        );
-        _loadData(); 
-      },
-      child: AllocationCard(
-        category: category,
-        spentAmount: categorySpent, // Dynamic contextual parameter value updates
-        totalLimit: limit,
-        icon: icon,
-        color: color,
       ),
     );
   }
@@ -264,19 +253,19 @@ class _DashboardState extends State<Dashboard> {
       decoration: BoxDecoration(
         gradient: const LinearGradient(colors: [Color(0xFF1e3c72), Color(0xFF2a5298)]),
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.blue.withOpacity(0.2), blurRadius: 10, offset: const Offset(0, 5))],
+        boxShadow: [BoxShadow(color: Colors.blue.withValues(alpha: 0.2), blurRadius: 10, offset: const Offset(0, 5))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Interval Total Balance', style: TextStyle(color: Colors.white70, fontSize: 16)),
+          const Text('Total Balance', style: TextStyle(color: Colors.white70, fontSize: 14)),
           const SizedBox(height: 10),
           ValueListenableBuilder<String>(
             valueListenable: AppStateManager.currencyNotifier,
             builder: (context, currencySymbol, child) {
               return Text(
                 '$currencySymbol${balanceAmount.toStringAsFixed(2)}',
-                style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold),
+                style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
               );
             },
           ),
@@ -321,7 +310,9 @@ class _DashboardState extends State<Dashboard> {
     final titleController = TextEditingController();
     final amountController = TextEditingController();
     bool isExpense = true;
-    String selectedCategory = _categories[0];
+    
+    final currentCategories = AppStateManager.categoriesNotifier.value;
+    String? selectedCategory = currentCategories.isNotEmpty ? currentCategories[0].name : null;
 
     showModalBottomSheet(
       context: context,
@@ -347,37 +338,61 @@ class _DashboardState extends State<Dashboard> {
                       labelText: 'Amount',
                       prefixText: '$currencySymbol ',
                     ),
-                    keyboardType: TextInputType.number,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   );
                 },
               ),
               const SizedBox(height: 15),
-              DropdownButtonFormField<String>(
-                value: selectedCategory,
-                items: _categories.map((cat) => DropdownMenuItem(value: cat, child: Text(cat))).toList(),
-                onChanged: (val) => setModalState(() => selectedCategory = val!),
-                decoration: const InputDecoration(labelText: 'Category'),
-              ),
+              
+              // Reactive drop-down field connecting custom storage tags
+              if (currentCategories.isNotEmpty)
+                DropdownButtonFormField<String>(
+                  value: selectedCategory,
+                  items: currentCategories.map((cat) {
+                    return DropdownMenuItem<String>(
+                      value: cat.name,
+                      child: Row(
+                        children: [
+                          Icon(cat.icon, color: cat.color, size: 18),
+                          const SizedBox(width: 8),
+                          Text(cat.name),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (val) => setModalState(() => selectedCategory = val),
+                  decoration: const InputDecoration(labelText: 'Category'),
+                )
+              else
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 10),
+                  child: Text("Please define categories in settings first.", style: TextStyle(color: Colors.red)),
+                ),
+                
               SwitchListTile(
                 title: Text(isExpense ? "Expense" : "Income"),
                 value: isExpense,
-                activeColor: Colors.red,
+                activeThumbColor: Colors.red, // Modern parameter update avoiding linting/precision warnings
                 onChanged: (val) => setModalState(() => isExpense = val),
               ),
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
+                height: 50,
                 child: ElevatedButton(
                   onPressed: () {
-                    final enteredTitle = titleController.text;
+                    final enteredTitle = titleController.text.trim();
                     final enteredAmount = double.tryParse(amountController.text) ?? 0.0;
-                    if (enteredTitle.isEmpty || enteredAmount <= 0) return;
+                    if (enteredTitle.isEmpty || enteredAmount <= 0 || selectedCategory == null) return;
 
-                    _addNewTransaction(enteredTitle, enteredAmount, isExpense, selectedCategory);
+                    _addNewTransaction(enteredTitle, enteredAmount, isExpense, selectedCategory!);
                     Navigator.of(context).pop();
                   },
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1e3c72)),
-                  child: const Text('Save', style: TextStyle(color: Colors.white)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1e3c72),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Save', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                 ),
               ),
               const SizedBox(height: 20),

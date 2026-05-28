@@ -1,6 +1,7 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
-import '../services/app_state_manager.dart'; // Import your global state manager
+import '../models/category_item.dart';
+import '../services/app_state_manager.dart';
 
 class SpendingChart extends StatelessWidget {
   final Map<String, double> categoryData;
@@ -10,43 +11,82 @@ class SpendingChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 200,
+      height: 220,
       padding: const EdgeInsets.all(16),
-      // Listen to currency changes to redraw chart segment titles reactively
-      child: ValueListenableBuilder<String>(
-        valueListenable: AppStateManager.currencyNotifier,
-        builder: (context, currencySymbol, child) {
-          return PieChart(
-            PieChartData(
-              sectionsSpace: 5,
-              centerSpaceRadius: 40,
-              sections: _buildSections(currencySymbol),
-            ),
+      child: ValueListenableBuilder<List<CategoryItem>>(
+        valueListenable: AppStateManager.categoriesNotifier,
+        builder: (context, availableCategories, child) {
+          return ValueListenableBuilder<String>(
+            valueListenable: AppStateManager.currencyNotifier,
+            builder: (context, currencySymbol, child) {
+              
+              final sections = _buildSections(currencySymbol, availableCategories);
+              
+              if (sections.isEmpty) {
+                return const Center(
+                  child: Text(
+                    "No expense breakdown available",
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                );
+              }
+
+              return PieChart(
+                PieChartData(
+                  sectionsSpace: 3,
+                  centerSpaceRadius: 45,
+                  sections: sections,
+                ),
+              );
+            },
           );
         },
       ),
     );
   }
 
-  List<PieChartSectionData> _buildSections(String currencySymbol) {
-    final List<Color> colors = [Colors.blue, Colors.green, Colors.orange, Colors.purple, Colors.red];
-    int index = 0;
+  List<PieChartSectionData> _buildSections(
+    String currencySymbol, 
+    List<CategoryItem> availableCategories
+  ) {
+    final List<Color> fallbackColors = [
+      Colors.blue, 
+      Colors.green, 
+      Colors.orange, 
+      Colors.purple, 
+      Colors.red
+    ];
+    int fallbackIndex = 0;
 
-    return categoryData.entries.map((entry) {
-      final isNotEmpty = entry.value > 0;
-      final color = colors[index % colors.length];
-      index++;
+    return categoryData.entries.where((entry) => entry.value > 0).map((entry) {
+      
+      final matchedCategory = availableCategories.firstWhere(
+        (cat) => cat.name.toLowerCase() == entry.key.toLowerCase(),
+        orElse: () => CategoryItem(
+          id: '',
+          name: entry.key,
+          colorValue: fallbackColors[fallbackIndex % fallbackColors.length].value,
+          iconCodePoint: 0,
+          monthlyLimit: 0.0, // Fixed the missing required argument
+        ),
+      );
+      
+      if (matchedCategory.id.isEmpty) {
+        fallbackIndex++;
+      }
 
       return PieChartSectionData(
-        color: color,
+        color: matchedCategory.color, 
         value: entry.value,
-        // Replaced hardcoded '$' with dynamic currencySymbol
-        title: isNotEmpty ? '${entry.key}\n$currencySymbol${entry.value.toStringAsFixed(0)}' : '',
-        radius: 50,
+        title: '${entry.key}\n$currencySymbol${entry.value.toStringAsFixed(0)}',
+        radius: 55,
         titleStyle: const TextStyle(
           fontSize: 10,
-          fontWeight: FontWeight.bold,
+          fontWeight: FontWeight.w600, 
           color: Colors.white,
+          shadows: [
+            Shadow(color: Colors.black45, blurRadius: 4, offset: Offset(1, 1)),
+          ],
         ),
       );
     }).toList();

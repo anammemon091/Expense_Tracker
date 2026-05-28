@@ -1,100 +1,83 @@
 import 'package:flutter/material.dart';
-import '../services/app_state_manager.dart'; // Import your new global state manager
+import '../models/category_item.dart';
+import '../services/app_state_manager.dart';
 
 class AllocationCard extends StatelessWidget {
-  final String category;
-  final double spentAmount;
-  final double totalLimit;
-  final IconData icon;
-  final Color color;
+  final CategoryItem category;
+  final double currentSpend;
 
   const AllocationCard({
     super.key,
     required this.category,
-    required this.spentAmount,
-    required this.totalLimit,
-    required this.icon,
-    required this.color,
+    required this.currentSpend,
   });
 
   @override
   Widget build(BuildContext context) {
-    double percentage = (spentAmount / totalLimit).clamp(0.0, 1.0);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final double percentage = category.monthlyLimit > 0 
+        ? (currentSpend / category.monthlyLimit).clamp(0.0, 1.0)
+        : 0.0;
+        
+    final bool isOverBudget = currentSpend > category.monthlyLimit && category.monthlyLimit > 0;
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        // Switches background dynamically to premium pitch dark or crisp white
         color: isDark ? const Color(0xFF121212) : Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: isDark ? Border.all(color: Colors.white.withOpacity(0.05), width: 1) : null,
-        boxShadow: [
-          BoxShadow(
-            color: isDark ? Colors.black.withOpacity(0.4) : Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(16),
+        border: isOverBudget ? Border.all(color: Colors.redAccent.withValues(alpha: 0.5), width: 1) : null,
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Row(
                 children: [
-                  CircleAvatar(
-                    backgroundColor: color.withOpacity(0.1),
-                    child: Icon(icon, color: color, size: 20),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: category.color.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(category.icon, color: category.color, size: 20),
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    category,
+                    category.name,
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
                 ],
               ),
-              // Dynamic Currency System Injection
               ValueListenableBuilder<String>(
                 valueListenable: AppStateManager.currencyNotifier,
-                builder: (context, currencySymbol, child) {
+                builder: (context, currency, child) {
                   return Text(
-                    "$currencySymbol${spentAmount.toStringAsFixed(0)} / $currencySymbol${totalLimit.toStringAsFixed(0)}",
+                    "$currency${currentSpend.toStringAsFixed(0)} / $currency${category.monthlyLimit.toStringAsFixed(0)}",
                     style: TextStyle(
-                      color: isDark ? Colors.grey[400] : Colors.grey[600], 
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.w600,
+                      color: isOverBudget ? Colors.redAccent : (isDark ? Colors.grey[400] : Colors.grey[700]),
                     ),
                   );
                 },
               ),
             ],
           ),
-          const SizedBox(height: 15),
-          // CUSTOM PROGRESS BAR
-          Stack(
-            children: [
-              Container(
-                height: 8,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  // Dark tracking track bar backgrounds 
-                  color: isDark ? Colors.grey[900] : Colors.grey[200],
-                  borderRadius: BorderRadius.circular(10),
-                ),
+          const SizedBox(height: 12),
+          // Progress bar track
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: percentage,
+              minHeight: 8,
+              backgroundColor: isDark ? Colors.grey[900] : Colors.grey[200],
+              valueColor: AlwaysStoppedAnimation<Color>(
+                isOverBudget ? Colors.redAccent : category.color,
               ),
-              LayoutBuilder(
-                builder: (context, constraints) => Container(
-                  height: 8,
-                  width: constraints.maxWidth * percentage,
-                  decoration: BoxDecoration(
-                    color: color,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
         ],
       ),
