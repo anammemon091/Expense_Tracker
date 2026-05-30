@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:uuid/uuid.dart';
-import 'models/transaction.dart'; // Ensure Transaction model is imported
-import 'models/category_item.dart'; // Import your new CategoryItem model
+import 'models/transaction.dart'; 
+import 'models/category_item.dart'; 
+import 'models/recurring_blueprint.dart'; // Import your new RecurringBlueprint model
 import 'screens/security_screen.dart';
 import 'services/app_state_manager.dart'; 
 
@@ -15,11 +16,13 @@ void main() async {
     await Hive.initFlutter();
 
     // 3. Register your TypeAdapters
-    Hive.registerAdapter(TransactionAdapter()); // Adapts your Transaction class (typeId: 0)
-    Hive.registerAdapter(CategoryItemAdapter()); // Adapts your CategoryItem class (typeId: 1)
+    Hive.registerAdapter(TransactionAdapter());      // typeId: 0
+    Hive.registerAdapter(CategoryItemAdapter());     // typeId: 1
+    Hive.registerAdapter(RecurringBlueprintAdapter()); // New: typeId: 2
 
     // 4. Open the data persistence storage boxes
     await Hive.openBox('transactions_box');
+    await Hive.openBox<RecurringBlueprint>('recurring_box'); // New: Subscriptions Box
     final categoriesBox = await Hive.openBox<CategoryItem>('categories_box');
     
     // 5. Auto-hydrate default categories on the absolute first launch
@@ -29,48 +32,51 @@ void main() async {
         CategoryItem(
           id: uuid.v4(),
           name: "Housing",
-          colorValue: const Color(0xFF2196F3).value, // Colors.blue
+          colorValue: const Color(0xFF2196F3).value, 
           iconCodePoint: Icons.home_rounded.codePoint,
           monthlyLimit: 1500.0,
         ),
         CategoryItem(
           id: uuid.v4(),
           name: "Transport",
-          colorValue: const Color(0xFF4CAF50).value, // Colors.green
+          colorValue: const Color(0xFF4CAF50).value, 
           iconCodePoint: Icons.directions_bus.codePoint,
           monthlyLimit: 500.0,
         ),
         CategoryItem(
           id: uuid.v4(),
           name: "Food",
-          colorValue: const Color(0xFFFF9800).value, // Colors.orange
+          colorValue: const Color(0xFFFF9800).value, 
           iconCodePoint: Icons.restaurant.codePoint,
           monthlyLimit: 800.0,
         ),
         CategoryItem(
           id: uuid.v4(),
           name: "Entertainment",
-          colorValue: const Color(0xFF9C27B0).value, // Colors.purple
+          colorValue: const Color(0xFF9C27B0).value, 
           iconCodePoint: Icons.movie_creation_outlined.codePoint,
           monthlyLimit: 300.0,
         ),
         CategoryItem(
           id: uuid.v4(),
           name: "Other",
-          colorValue: const Color(0xFF9E9E9E).value, // Colors.grey
+          colorValue: const Color(0xFF9E9E9E).value, 
           iconCodePoint: Icons.category_outlined.codePoint,
           monthlyLimit: 200.0,
         ),
       ];
 
       for (var cat in defaultCategories) {
-        await categoriesBox.put(cat.name, cat); // Use name as key for direct filters
+        await categoriesBox.put(cat.name, cat); 
       }
     }
 
-    debugPrint("Hive & Custom Categories Box Initialized Successfully");
+    // 6. 🔄 Run the Auto-Leap Recurring Calculation Engine on startup
+    await AppStateManager.initializeRecurringEngine();
+
+    debugPrint("Hive & Subscription Core Engines Initialized Successfully");
   } catch (e) {
-    debugPrint("Hive Initialization Error: $e");
+    debugPrint("Initialization Error: $e");
   }
 
   runApp(const ExpenseTrackerApp());
@@ -81,7 +87,6 @@ class ExpenseTrackerApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Listen to global theme changes dynamically across the entire application
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: AppStateManager.themeModeNotifier,
       builder: (context, currentThemeMode, child) {
@@ -109,11 +114,11 @@ class ExpenseTrackerApp extends StatelessWidget {
           darkTheme: ThemeData(
             useMaterial3: true,
             brightness: Brightness.dark,
-            scaffoldBackgroundColor: Colors.black, // True pitch black for AMOLED panels
+            scaffoldBackgroundColor: Colors.black, 
             colorScheme: ColorScheme.fromSeed(
               seedColor: const Color(0xFF1e3c72),
               brightness: Brightness.dark,
-              surface: Colors.black, // Handles background canvas tints
+              surface: Colors.black, 
             ),
             appBarTheme: const AppBarTheme(
               backgroundColor: Colors.black,
@@ -126,14 +131,11 @@ class ExpenseTrackerApp extends StatelessWidget {
             ),
             dialogTheme: const DialogThemeData( 
               backgroundColor: Color(0xFF121212),
-              surfaceTintColor: Colors.transparent, // Prevents Material 3 purple overlay on dark dialogs
+              surfaceTintColor: Colors.transparent, 
             ),
           ),
         
-          // Link the MaterialApp mode to the notifier value
           themeMode: currentThemeMode,
-          
-          // Starts with the Face ID security gate
           home: const SecurityScreen(),
         ); 
       }, 

@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/transaction.dart';
 import '../models/category_item.dart';
+import '../models/recurring_blueprint.dart'; // Import the new RecurringBlueprint model
 import '../widgets/allocation_card.dart';
 import '../widgets/spending_chart.dart';
 import '../widgets/timeline_selector.dart';
 import '../services/app_state_manager.dart';
 import 'category_detail_screen.dart';
+import 'manage_subscriptions_screen.dart'; // Import your new subscription screen
 import 'settings_screen.dart';
 
 class Dashboard extends StatefulWidget {
@@ -137,6 +139,9 @@ class _DashboardState extends State<Dashboard> {
               return CustomScrollView(
                 slivers: [
                   SliverToBoxAdapter(child: _buildBalanceCard(scopedBalance)),
+                  
+                  // 🔄 New: Smart Subscription & Future Impact Forecast Matrix Card Added Here
+                  SliverToBoxAdapter(child: _buildSubscriptionForecastCard()),
                   
                   // Interactive Dashboard Timeline Selector track
                   const SliverToBoxAdapter(child: TimelineSelector()),
@@ -274,6 +279,90 @@ class _DashboardState extends State<Dashboard> {
     );
   }
 
+  // 🔄 New Helper Widget: Smart 30-Day Subscription Impact Indicator Card
+  Widget _buildSubscriptionForecastCard() {
+    return ValueListenableBuilder<List<RecurringBlueprint>>(
+      valueListenable: AppStateManager.recurringNotifier,
+      builder: (context, subscriptions, child) {
+        double upcoming30DaysTotal = 0;
+        final DateTime horizonDate = DateTime.now().add(const Duration(days: 30));
+
+        for (var sub in subscriptions) {
+          if (sub.nextBillingDate.isBefore(horizonDate)) {
+            upcoming30DaysTotal += sub.amount;
+          }
+        }
+
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+
+        return GestureDetector(
+          onTap: () async {
+            await Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const ManageSubscriptionsScreen()),
+            );
+            // Refresh data arrays to catch any processed items on popping back
+            _loadData();
+          },
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF121212) : Colors.amber.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: isDark ? Colors.grey[900]! : Colors.amber.withValues(alpha: 0.25),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      subscriptions.isEmpty ? Icons.autorenew_rounded : Icons.speed_rounded, 
+                      color: subscriptions.isEmpty ? Colors.grey : Colors.amber, 
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          subscriptions.isEmpty ? "Subscription Scheduler" : "30-Day Subscription Forecast",
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                        Text(
+                          subscriptions.isEmpty 
+                              ? "Tap to configure recurring expense items" 
+                              : "Automated tracks scheduled to deploy soon",
+                          style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                if (subscriptions.isNotEmpty && upcoming30DaysTotal > 0)
+                  ValueListenableBuilder<String>(
+                    valueListenable: AppStateManager.currencyNotifier,
+                    builder: (context, symbol, child) {
+                      return Text(
+                        "-$symbol${upcoming30DaysTotal.toStringAsFixed(0)}",
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.amber, fontSize: 14),
+                      );
+                    },
+                  )
+                else
+                  const Icon(Icons.arrow_forward_ios_rounded, size: 12, color: Colors.grey),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildTransactionItem(Transaction tx) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
@@ -344,7 +433,6 @@ class _DashboardState extends State<Dashboard> {
               ),
               const SizedBox(height: 15),
               
-              // Reactive drop-down field connecting custom storage tags
               if (currentCategories.isNotEmpty)
                 DropdownButtonFormField<String>(
                   value: selectedCategory,
@@ -372,7 +460,7 @@ class _DashboardState extends State<Dashboard> {
               SwitchListTile(
                 title: Text(isExpense ? "Expense" : "Income"),
                 value: isExpense,
-                activeThumbColor: Colors.red, // Modern parameter update avoiding linting/precision warnings
+                activeThumbColor: Colors.red, 
                 onChanged: (val) => setModalState(() => isExpense = val),
               ),
               const SizedBox(height: 20),
