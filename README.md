@@ -65,7 +65,6 @@ The application relies on a completely decoupled, reactive architectural pipelin
 * **Utilities:** `uuid` (Cryptographically secure unique asset ID generation)
 
 ## Project Structure
-```text
 lib/
 ├── models/         # Data blueprints, Object Schemas & generated Hive TypeAdapters
 │   ├── transaction.dart          # Transaction records structure
@@ -85,6 +84,7 @@ lib/
 │   └── timeline_selector.dart    # Segmented interactive scope sorting tabs
 └── main.dart       # Native bindings, storage configurations initialization, engine startup, and app shell
 
+
 ## Getting Started
 ### Prerequisites
 Before running the project, make sure you have the Flutter SDK installed on your development machine:
@@ -96,7 +96,7 @@ Android Studio (with virtual emulator or physical ADB target) / Xcode (for iOS t
 Dart SDK
 
 ### Installation & Execution
-* ** Clone the repository:**
+* **Clone the repository:**
 
 git clone [https://github.com/anammemon091/Expense_Tracker.git](https://github.com/anammemon091/Expense_Tracker.git)
 cd Expense_Tracker
