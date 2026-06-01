@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:camera/camera.dart';
-import 'package:flutter/foundation.dart'; 
+import 'package:hive_flutter/hive_flutter.dart';
 import 'dashboard.dart';
-import '../services/app_state_manager.dart'; // Import your global state manager
-import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 
 class SecurityScreen extends StatefulWidget {
   const SecurityScreen({super.key});
@@ -13,205 +10,254 @@ class SecurityScreen extends StatefulWidget {
 }
 
 class _SecurityScreenState extends State<SecurityScreen> {
-  CameraController? _controller;
-  bool _isInitialized = false;
-  bool _isVerifying = false;
-  bool _faceDetected = false;
-  bool _isNavigating = false; 
-  String _message = "Align your face in the circle";
-
-  final FaceDetector _faceDetector = FaceDetector(
-    options: FaceDetectorOptions(
-      enableClassification: true,
-      performanceMode: FaceDetectorMode.fast,
-    ),
-  );
+  final _myBox = Hive.box('transactions_box');
+  
+  String _inputPin = "";
+  String _savedPin = "";
+  String _firstEnteredPin = ""; 
+  
+  bool _isSettingUp = false; 
+  bool _isConfirming = false;
+  String _message = "Enter security PIN to unlock";
 
   @override
   void initState() {
     super.initState();
-    // Check global state first before spinning up intensive camera hardware
-    _checkBiometricStatus();
+    _checkPinStatus();
   }
 
-  void _checkBiometricStatus() {
-    // If biometrics are explicitly toggled off in settings, skip directly to Dashboard
-    if (!AppStateManager.biometricNotifier.value) {
-      _isNavigating = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        Navigator.pushReplacement(
-          context, 
-          MaterialPageRoute(builder: (c) => const Dashboard())
-        );
+  void _checkPinStatus() {
+    final dynamic masterPin = _myBox.get("APP_MASTER_PIN");
+    if (masterPin == null || masterPin.toString().trim().isEmpty) {
+      setState(() {
+        _isSettingUp = true;
+        _message = "Create your 4-Digit Security PIN";
       });
     } else {
-      _setupCamera();
+      _savedPin = masterPin.toString();
     }
   }
 
-  Future<void> _setupCamera() async {
-    try {
-      final cameras = await availableCameras();
-      if (cameras.isEmpty) return;
-
-      final front = cameras.firstWhere(
-        (c) => c.lensDirection == CameraLensDirection.front,
-        orElse: () => cameras.first,
-      );
-
-      _controller = CameraController(
-        front, 
-        ResolutionPreset.medium, 
-        enableAudio: false,
-        imageFormatGroup: ImageFormatGroup.nv21, 
-      );
-      
-      await _controller!.initialize();
-      
-      if (!mounted) return;
-      setState(() => _isInitialized = true);
-    } catch (e) {
-      debugPrint("Camera Setup Error: $e");
-    }
-  }
-
-  void _startLiveVerification() {
-    if (_controller == null || !_controller!.value.isInitialized) return;
+  void _handleKeyPress(String value) {
+    if (_inputPin.length >= 4) return;
 
     setState(() {
-      _isVerifying = true;
-      _message = "Scanning... Hold still";
+      _inputPin += value;
     });
 
-    _controller!.startImageStream((CameraImage image) async {
-      if (_isNavigating) return; 
+    if (_inputPin.length == 4) {
+      Future.delayed(const Duration(milliseconds: 180), () => _evaluatePinPipeline());
+    }
+  }
 
-      try {
-        final inputImage = _processCameraImage(image);
-        if (inputImage == null) return;
+  void _handleBackspace() {
+    if (_inputPin.isEmpty) return;
+    setState(() {
+      _inputPin = _inputPin.substring(0, _inputPin.length - 1);
+    });
+  }
 
-        final List<Face> faces = await _faceDetector.processImage(inputImage);
-
-        if (faces.isNotEmpty && mounted && !_isNavigating) {
-          _isNavigating = true; 
-          
-          await _controller!.stopImageStream();
-
+  void _evaluatePinPipeline() {
+    if (_isSettingUp) {
+      if (!_isConfirming) {
+        _firstEnteredPin = _inputPin;
+        setState(() {
+          _inputPin = "";
+          _isConfirming = true;
+          _message = "Re-enter your PIN to confirm";
+        });
+      } else {
+        if (_inputPin == _firstEnteredPin) {
+          _myBox.put("APP_MASTER_PIN", _inputPin);
+          _handleSuccessNavigation();
+        } else {
+          _triggerFailureFeedback("PINs do not match. Restarting.");
           setState(() {
-            _faceDetected = true;
-            _message = "Identity Verified!";
-          });
-
-          Future.delayed(const Duration(milliseconds: 600), () {
-            if (mounted) {
-              Navigator.pushReplacement(
-                context, 
-                MaterialPageRoute(builder: (c) => const Dashboard())
-              );
-            }
+            _firstEnteredPin = "";
+            _isConfirming = false;
+            _message = "Create your 4-Digit Security PIN";
           });
         }
-      } catch (e) {
-        debugPrint("Detection Error: $e");
       }
+    } else {
+      if (_inputPin == _savedPin) {
+        _handleSuccessNavigation();
+      } else {
+        _triggerFailureFeedback("Incorrect PIN. Try again.");
+      }
+    }
+  }
+
+  void _triggerFailureFeedback(String msg) {
+    setState(() {
+      _inputPin = "";
+      _message = msg;
     });
   }
 
-  InputImage? _processCameraImage(CameraImage image) {
-    try {
-      final WriteBuffer allBytes = WriteBuffer();
-      for (final Plane plane in image.planes) {
-        allBytes.putUint8List(plane.bytes);
-      }
-      final bytes = allBytes.done().buffer.asUint8List();
-
-      final Size imageSize = Size(image.width.toDouble(), image.height.toDouble());
-      const imageRotation = InputImageRotation.rotation270deg; 
-      
-      final inputImageFormat = InputImageFormatValue.fromRawValue(image.format.raw) 
-          ?? InputImageFormat.nv21;
-
-      final metadata = InputImageMetadata(
-        size: imageSize,
-        rotation: imageRotation,
-        format: inputImageFormat,
-        bytesPerRow: image.planes[0].bytesPerRow,
+  void _handleSuccessNavigation() {
+    if (!mounted) return;
+    
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context, true); 
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const Dashboard()),
       );
-
-      return InputImage.fromBytes(
-        bytes: bytes,
-        metadata: metadata,
-      );
-    } catch (e) {
-      debugPrint("Image Processing Error: $e");
-      return null;
     }
-  }
-
-  @override
-  void dispose() {
-    if (_controller != null && _controller!.value.isStreamingImages) {
-      _controller!.stopImageStream();
-    }
-    _controller?.dispose();
-    _faceDetector.close();
-    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // Check theme settings to style canvas backgrounds dynamically
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      // Dynamic fallback color schema structures
-      backgroundColor: isDark ? Colors.black : const Color(0xFF1e3c72),
-      body: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Text(
-            'Face ID Lock', 
-            style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)
-          ),
-          const SizedBox(height: 10),
-          Text(_message, style: const TextStyle(color: Colors.white70)),
-          const SizedBox(height: 30),
-          Center(
-            child: Container(
-              width: 280, 
-              height: 280,
+      backgroundColor: isDark ? const Color(0xFF0A0A0A) : const Color(0xFF1e3c72),
+      body: SafeArea(
+        child: Column(
+          children: [
+            const Spacer(flex: 2),
+            
+            Container(
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.06),
                 shape: BoxShape.circle,
-                border: Border.all(
-                  color: _faceDetected ? Colors.greenAccent : Colors.white, 
-                  width: 4
-                ),
               ),
-              clipBehavior: Clip.antiAlias,
-              child: _isInitialized 
-                  ? CameraPreview(_controller!) 
-                  : const Center(child: CircularProgressIndicator(color: Colors.white)),
+              child: Icon(
+                _isSettingUp ? Icons.lock_open_rounded : Icons.lock_outline_rounded,
+                color: Colors.white,
+                size: 32,
+              ),
             ),
+            const SizedBox(height: 24),
+            Text(
+              _isSettingUp ? "Secure Configuration" : "Welcome Back",
+              style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+            ),
+            const SizedBox(height: 8),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: Text(
+                _message,
+                key: ValueKey<String>(_message),
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.65), fontSize: 13),
+              ),
+            ),
+            
+            const Spacer(),
+
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(4, (index) {
+                bool isFilled = index < _inputPin.length;
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  margin: const EdgeInsets.symmetric(horizontal: 12),
+                  width: 14,
+                  height: 14,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isFilled ? Colors.white : Colors.white.withValues(alpha: 0.2),
+                    border: Border.all(
+                      color: isFilled ? Colors.white : Colors.white.withValues(alpha: 0.1),
+                      width: 1,
+                    ),
+                    boxShadow: isFilled ? [
+                      BoxShadow(color: Colors.white.withValues(alpha: 0.3), blurRadius: 8, spreadRadius: 1)
+                    ] : [],
+                  ),
+                );
+              }),
+            ),
+            
+            const Spacer(flex: 2),
+
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [_buildKeypadButton("1"), _buildKeypadButton("2"), _buildKeypadButton("3")],
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [_buildKeypadButton("4"), _buildKeypadButton("5"), _buildKeypadButton("6")],
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [_buildKeypadButton("7"), _buildKeypadButton("8"), _buildKeypadButton("9")],
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _buildCancelButton(),
+                      _buildKeypadButton("0"),
+                      _buildBackspaceButton(),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const Spacer(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildKeypadButton(String value) {
+    return GestureDetector(
+      onTap: () => _handleKeyPress(value),
+      child: Container(
+        width: 72,
+        height: 72,
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.05),
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08), width: 1),
+        ),
+        child: Center(
+          child: Text(
+            value,
+            style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w600),
           ),
-          const SizedBox(height: 50),
-          if (!_faceDetected && _isInitialized)
-            SizedBox(
-              width: 220,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: _isVerifying ? null : _startLiveVerification,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white, 
-                  foregroundColor: const Color(0xFF1e3c72),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                ),
-                child: Text(
-                  _isVerifying ? "SCANNING..." : "START VERIFICATION",
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
-            ),
-        ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBackspaceButton() {
+    return GestureDetector(
+      onTap: _handleBackspace,
+      child: Container(
+        width: 72,
+        height: 72,
+        decoration: const BoxDecoration(shape: BoxShape.circle),
+        child: const Center(
+          child: Icon(Icons.backspace_outlined, color: Colors.white, size: 22),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCancelButton() {
+    if (!Navigator.canPop(context)) return const SizedBox(width: 72, height: 72);
+    
+    return GestureDetector(
+      onTap: () => Navigator.pop(context, false),
+      child: Container(
+        width: 72,
+        height: 72,
+        decoration: const BoxDecoration(shape: BoxShape.circle),
+        child: const Center(
+          child: Icon(Icons.close_rounded, color: Colors.white54, size: 24),
+        ),
       ),
     );
   }

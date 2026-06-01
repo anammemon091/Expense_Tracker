@@ -27,40 +27,40 @@ Decoupled state architecture managing multi-currency toggles (e.g., $, €, ₨,
 ### 🔌 AMOLED Premium Dark Mode
 High-contrast, pitch-black themes designed specifically for modern mobile AMOLED displays to drastically reduce eye strain and optimize battery power profiles.
 
-### 🔒 Biometric Gate & Core Security
-Seamless security verification layer utilizing on-device computer vision for face detection upon application initialization. The state layer handles a secure bypass condition—automatically routing users straight to the dashboard if biometrics are explicitly deactivated in app settings.
+### 🔒 High-Fidelity Keypad & Core Security
+Seamless security verification layer utilizing a high-fidelity tactile 4-digit keypad PIN lock system. Security states are safely synchronized via local database ledgers during cold boot; the application automatically routing users straight to the dashboard or to the configuration setup interface depending on explicit toggle configurations within the app settings.
 
 ### 💾 Local NoSQL Multi-Box Persistence
 Ultra-fast local database caching utilizing Hive to stream raw binary transaction objects and retain global preference metrics instantly. The storage tier uses structurally independent binary boxes (`transactions_box`, `categories_box`, and `recurring_box`) to isolate data structures and enforce lightning-fast read/write cycles.
 
 ## Architecture & State Flow
 The application relies on a completely decoupled, reactive architectural pipeline. Instead of introducing heavy third-party state management overhead, it solves cross-module communication cleanly using Flutter's native `ValueNotifier` pattern combined with Hive for synchronous disk persistence.
+
 ┌──────────────────────────────────────────────┐
-              │               Settings Screen                │
-              └──────────────────────┬───────────────────────┘
-                                     │
-                         (Trigger Preference Change)
-                                     │
-                                     ▼
-              ┌──────────────────────────────────────────────┐
-              │               AppStateManager                │
-              │   [ValueNotifiers & Async Auto-Leap Engine]  │
-              └──────────────┬────────────────────────┬──────┘
-                             │                        │
-                  (Updates UI Notifier)      (Syncs to Disk Storage)
-                             │                        │
-                             ▼                        ▼
- ┌──────────────────────────────────────┐  ┌────────────────────┐
- │   Dashboard / Security / Charts UI   │  │   Hive Storage     │
- │ (Reactive via ValueListenableBuilder)│  │ [Binary Multi-Box] │
- └──────────────────────────────────────┘  └────────────────────┘
- ## Tech Stack
+│               Settings Screen                │
+└──────────────────────┬───────────────────────┘
+                       │
+           (Trigger Preference Change)
+                       │
+                       ▼
+┌──────────────────────────────────────────────┐
+│               AppStateManager                │
+│   [ValueNotifiers & Async Auto-Leap Engine]  │
+└──────────────┬────────────────────────┬──────┘
+               │                        │
+    (Updates UI Notifier)      (Syncs to Disk Storage)
+               │                        │
+               ▼                        ▼
+┌──────────────────────────────────────┐  ┌────────────────────┐
+│   Dashboard / Security / Charts UI   │  │    Hive Storage    │
+│ (Reactive via ValueListenableBuilder)│  │ [Binary Multi-Box] │
+└──────────────────────────────────────┘  └────────────────────┘
+
+## Tech Stack
 * **Framework:** Flutter (Multi-Platform Mobile System Environment)
 * **Database Engine:** Hive Flutter (Lightweight NoSQL binary key-value storage)
 * **Code Generation:** Build Runner & Hive Generator (Automated type adapter indexing)
 * **State Architecture:** Reactive Engine utilizing native `ValueNotifier` & `ValueListenableBuilder` hooks
-* **Computer Vision:** Google ML Kit Face Detection
-* **Hardware Interfacing:** Flutter Camera Library
 * **Data Visualization:** `fl_chart`
 * **Utilities:** `uuid` (Cryptographically secure unique asset ID generation)
 
@@ -75,42 +75,28 @@ lib/
 │   ├── manage_subscriptions.dart # SaaS subscription setup, cycle management & tracking terminal
 │   ├── category_detail_screen.dart # Deep-dive categorical timeline breakdowns
 │   ├── settings_screen.dart      # Preference engines, dark toggle & dynamic tags hub
-│   └── security_screen.dart      # Initialization biometric facial recognition verification gate
+│   └── security_screen.dart      # Tactile 4-digit custom security PIN checkpoint terminal
 ├── services/       # Central Business Logic Controllers, cron simulation & global hooks
 │   └── app_state_manager.dart    # System pipelines execution hub & centralized ValueNotifiers
 ├── widgets/        # Reusable presentational view nodes & geometric asset rendering wrappers
 │   ├── allocation_card.dart      # Line progress spend tracking limit bars
 │   ├── spending_chart.dart       # High-fidelity analytics pie chart module
 │   └── timeline_selector.dart    # Segmented interactive scope sorting tabs
-└── main.dart       # Native bindings, storage configurations initialization, engine startup, and app shell
-
+└── main.dart       # Native bindings, dynamic routing checkpoint, storage initialization, and app shell
 
 ## Getting Started
 ### Prerequisites
 Before running the project, make sure you have the Flutter SDK installed on your development machine:
-
-Flutter SDK (v3.0.0 or higher)
-
-Android Studio (with virtual emulator or physical ADB target) / Xcode (for iOS testing)
-
-Dart SDK
+* Flutter SDK (v3.0.0 or higher)
+* Android Studio (with virtual emulator or physical ADB target) / Xcode (for iOS testing)
+* Dart SDK
 
 ### Installation & Execution
-* **Clone the repository:**
-
-git clone [https://github.com/anammemon091/Expense_Tracker.git](https://github.com/anammemon091/Expense_Tracker.git)
-cd Expense_Tracker
-
-* **Fetch packages and structural modules:**
-
-flutter pub get
-
-* **Compile Object Adapters via Code Generator:**
-Ensure all local NoSQL indices and database serializations are properly generated by triggering the background compiler:
-
-
-dart run build_runner build --delete-conflicting-outputs
-
-* **Run the application:**
-
-flutter run
+1. **Clone the repository:**
+```bash
+   git clone [https://github.com/anammemon091/Expense_Tracker.git](https://github.com/anammemon091/Expense_Tracker.git)
+   cd Expense_Tracker
+   flutter pub get
+   dart run build_runner build --delete-conflicting-outputs
+   flutter run
+   

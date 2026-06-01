@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../services/app_state_manager.dart';
-import 'manage_categories_screen.dart'; // Import your new Category Management screen
+import 'manage_categories_screen.dart'; 
+import 'security_screen.dart'; // Import to handle routing setups if needed
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -18,24 +19,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text("Clear All Data?"),
-        content: const Text("This will wipe your history and reset your balance."),
+        content: const Text("This will wipe your history, configurations, and security credentials."),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
           TextButton(
             onPressed: () async {
-              // Preserve configurations before clearing data
+              // Preserve settings configurations before completely purging the storage layer
               final savedCurrency = _myBox.get('global_currency', defaultValue: '\$');
               final savedDark = _myBox.get('is_dark_mode', defaultValue: false);
-              final savedBiometrics = _myBox.get('is_biometric_enabled', defaultValue: true);
               
               await _myBox.clear();
               
-              // Restore user preference contexts post clear actions
+              // Restore foundational preference variables
               await _myBox.put('global_currency', savedCurrency);
               await _myBox.put('is_dark_mode', savedDark);
-              await _myBox.put('is_biometric_enabled', savedBiometrics);
 
-              // Safe BuildContext check across async gap
               if (!ctx.mounted) return;
               Navigator.pop(ctx);
               
@@ -43,7 +41,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Navigator.pop(context, true); 
               
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("All transaction records have been wiped")),
+                const SnackBar(content: Text("All cache stores and tracking matrices have been purged")),
               );
             }, 
             child: const Text("Clear", style: TextStyle(color: Colors.red))
@@ -51,6 +49,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ],
       ),
     );
+  }
+
+  void _togglePinLock(bool activate) async {
+    if (activate) {
+      // Direct user to configure their security credentials layout
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const SecurityScreen()),
+      );
+      // Force UI refresh state loop upon return
+      setState(() {});
+    } else {
+      // Wipe the master tracking PIN to completely deactivate secure gating checkpoints
+      await _myBox.delete("APP_MASTER_PIN");
+      setState(() {});
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("PIN Lock security has been deactivated")),
+      );
+    }
   }
 
   void _showCurrencyPicker(BuildContext context, String currentCurrency) {
@@ -97,6 +115,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Determine live device secure locking profile status
+    final dynamic activePin = _myBox.get("APP_MASTER_PIN");
+    final bool isPinSetupActive = activePin != null && activePin.toString().trim().isNotEmpty;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Settings', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -108,18 +130,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const Text("Security", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
           const SizedBox(height: 10),
           
-          // Biometric Authentication Switch
-          ValueListenableBuilder<bool>(
-            valueListenable: AppStateManager.biometricNotifier,
-            builder: (context, isBiometricEnabled, child) {
-              return SwitchListTile(
-                secondary: const Icon(Icons.face_unlock_rounded, color: Colors.blue),
-                title: const Text("Biometric Authentication"),
-                subtitle: const Text("Face ID verification for access"),
-                value: isBiometricEnabled,
-                onChanged: (val) => AppStateManager.toggleBiometrics(val),
-              );
-            },
+          // 🔒 Custom Keypad PIN Authentication Switch Control
+          SwitchListTile(
+            secondary: Icon(
+              isPinSetupActive ? Icons.lock_rounded : Icons.lock_open_rounded, 
+              color: isPinSetupActive ? Colors.green : Colors.blueGrey
+            ),
+            title: const Text("App PIN Lock Security"),
+            subtitle: Text(
+              isPinSetupActive 
+                  ? "Enabled (Secure Keypad Gate Active)" 
+                  : "Disabled (Bypass Mode Active)"
+            ),
+            value: isPinSetupActive,
+            onChanged: (val) => _togglePinLock(val),
           ),
           
           const Divider(height: 32),
@@ -159,7 +183,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const Text("Structure", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
           const SizedBox(height: 10),
 
-          // New: Manage Categories and Limits Entry Point
+          // Manage Categories Entry Point Terminal
           ListTile(
             leading: const Icon(Icons.category_outlined, color: Color(0xFF1e3c72)),
             title: const Text("Manage Categories"),

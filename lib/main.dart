@@ -3,28 +3,40 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:uuid/uuid.dart';
 import 'models/transaction.dart'; 
 import 'models/category_item.dart'; 
-import 'models/recurring_blueprint.dart'; // Import your new RecurringBlueprint model
+import 'models/recurring_blueprint.dart'; 
 import 'screens/security_screen.dart';
+import 'screens/dashboard.dart'; // Make sure to import your Dashboard screen here
 import 'services/app_state_manager.dart'; 
 
 void main() async {
   // 1. Ensure Flutter bindings are initialized before doing async work
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Root screen variable to determine home route dynamically
+  Widget initialScreen = const Dashboard();
+
   try {
     // 2. Initialize Hive for Flutter
     await Hive.initFlutter();
 
     // 3. Register your TypeAdapters
-    Hive.registerAdapter(TransactionAdapter());      // typeId: 0
-    Hive.registerAdapter(CategoryItemAdapter());     // typeId: 1
-    Hive.registerAdapter(RecurringBlueprintAdapter()); // New: typeId: 2
+    Hive.registerAdapter(TransactionAdapter());        // typeId: 0
+    Hive.registerAdapter(CategoryItemAdapter());       // typeId: 1
+    Hive.registerAdapter(RecurringBlueprintAdapter()); // typeId: 2
 
     // 4. Open the data persistence storage boxes
-    await Hive.openBox('transactions_box');
-    await Hive.openBox<RecurringBlueprint>('recurring_box'); // New: Subscriptions Box
+    final transactionsBox = await Hive.openBox('transactions_box');
+    await Hive.openBox<RecurringBlueprint>('recurring_box'); 
     final categoriesBox = await Hive.openBox<CategoryItem>('categories_box');
     
+    // 🔏 Dynamic Security Checkpoint routing evaluation
+    final dynamic masterPin = transactionsBox.get("APP_MASTER_PIN");
+    if (masterPin != null && masterPin.toString().trim().isNotEmpty) {
+      initialScreen = const SecurityScreen();
+    } else {
+      initialScreen = const Dashboard();
+    }
+
     // 5. Auto-hydrate default categories on the absolute first launch
     if (categoriesBox.isEmpty) {
       const uuid = Uuid();
@@ -79,11 +91,13 @@ void main() async {
     debugPrint("Initialization Error: $e");
   }
 
-  runApp(const ExpenseTrackerApp());
+  runApp(ExpenseTrackerApp(homeScreen: initialScreen));
 }
 
 class ExpenseTrackerApp extends StatelessWidget {
-  const ExpenseTrackerApp({super.key});
+  final Widget homeScreen;
+  
+  const ExpenseTrackerApp({super.key, required this.homeScreen});
 
   @override
   Widget build(BuildContext context) {
@@ -136,7 +150,7 @@ class ExpenseTrackerApp extends StatelessWidget {
           ),
         
           themeMode: currentThemeMode,
-          home: const SecurityScreen(),
+          home: homeScreen, // Dynamic target assigned on initialize routine
         ); 
       }, 
     ); 
