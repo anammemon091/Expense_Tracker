@@ -54,7 +54,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _togglePinLock(bool activate) async {
     if (activate) {
       // Direct user to configure their security credentials layout
-      final result = await Navigator.push(
+       await Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const SecurityScreen()),
       );

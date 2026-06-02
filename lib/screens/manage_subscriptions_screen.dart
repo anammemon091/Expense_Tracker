@@ -45,7 +45,7 @@ class _ManageSubscriptionsScreenState extends State<ManageSubscriptionsScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (context) {
+      builder: (modalContext) {
         return StatefulBuilder(
           builder: (context, setModalState) {
             final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -96,7 +96,7 @@ class _ManageSubscriptionsScreenState extends State<ManageSubscriptionsScreen> {
                       children: [
                         Expanded(
                           child: DropdownButtonFormField<String>(
-                            value: _selectedInterval,
+                            initialValue: _selectedInterval,
                             decoration: InputDecoration(
                               labelText: "Billing Cycle",
                               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -112,7 +112,7 @@ class _ManageSubscriptionsScreenState extends State<ManageSubscriptionsScreen> {
                         const SizedBox(width: 12),
                         Expanded(
                           child: DropdownButtonFormField<String>(
-                            value: _selectedCategory,
+                            initialValue: _selectedCategory,
                             decoration: InputDecoration(
                               labelText: "Category",
                               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -153,7 +153,10 @@ class _ManageSubscriptionsScreenState extends State<ManageSubscriptionsScreen> {
                             
                             _titleController.clear();
                             _amountController.clear();
-                            if (mounted) Navigator.pop(context);
+                            
+                            // 🛡️ Fix Line 156: Guarded context invocation safely across async gap
+                            if (!modalContext.mounted) return;
+                            Navigator.pop(modalContext);
                           }
                         },
                         child: const Text("Activate Scheduler", style: TextStyle(fontWeight: FontWeight.bold)),
@@ -208,7 +211,14 @@ class _ManageSubscriptionsScreenState extends State<ManageSubscriptionsScreen> {
                   // Match color matching configurations
                   final matchedCat = categories.firstWhere(
                     (c) => c.name.toLowerCase() == item.category.toLowerCase(),
-                    orElse: () => CategoryItem(id: '', name: item.category, colorValue: Colors.grey.value, iconCodePoint: Icons.category.codePoint, monthlyLimit: 0),
+                    orElse: () => CategoryItem(
+                      id: '', 
+                      name: item.category, 
+                      // 🔄 Fix Line 211: Standard dynamic compliance for modern color integer format
+                      colorValue: Colors.grey.toARGB32(), 
+                      iconCodePoint: Icons.category.codePoint, 
+                      monthlyLimit: 0,
+                    ),
                   );
 
                   return Container(

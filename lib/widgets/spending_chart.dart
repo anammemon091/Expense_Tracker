@@ -65,7 +65,7 @@ class SpendingChart extends StatelessWidget {
         orElse: () => CategoryItem(
           id: '',
           name: entry.key,
-          colorValue: fallbackColors[fallbackIndex % fallbackColors.length].value,
+          colorValue: fallbackColors[fallbackIndex % fallbackColors.length].toARGB32(),
           iconCodePoint: 0,
           monthlyLimit: 0.0, // Fixed the missing required argument
         ),

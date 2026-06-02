@@ -179,7 +179,7 @@ class ManageCategoriesScreen extends StatelessWidget {
                           final newCat = CategoryItem(
                             id: const Uuid().v4(),
                             name: nameController.text.trim(),
-                            colorValue: selectedColor.value,
+                            colorValue: selectedColor.toARGB32(),
                             iconCodePoint: selectedIcon.codePoint,
                             monthlyLimit: parsedLimit,
                           );

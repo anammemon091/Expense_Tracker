@@ -435,7 +435,7 @@ class _DashboardState extends State<Dashboard> {
               
               if (currentCategories.isNotEmpty)
                 DropdownButtonFormField<String>(
-                  value: selectedCategory,
+                  initialValue: selectedCategory,
                   items: currentCategories.map((cat) {
                     return DropdownMenuItem<String>(
                       value: cat.name,

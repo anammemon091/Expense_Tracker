@@ -5,7 +5,7 @@ import 'models/transaction.dart';
 import 'models/category_item.dart'; 
 import 'models/recurring_blueprint.dart'; 
 import 'screens/security_screen.dart';
-import 'screens/dashboard.dart'; // Make sure to import your Dashboard screen here
+import 'screens/dashboard.dart'; 
 import 'services/app_state_manager.dart'; 
 
 void main() async {
@@ -44,35 +44,35 @@ void main() async {
         CategoryItem(
           id: uuid.v4(),
           name: "Housing",
-          colorValue: const Color(0xFF2196F3).value, 
+          colorValue: const Color(0xFF2196F3).toARGB32(), // Updated: Removed deprecated .value
           iconCodePoint: Icons.home_rounded.codePoint,
           monthlyLimit: 1500.0,
         ),
         CategoryItem(
           id: uuid.v4(),
           name: "Transport",
-          colorValue: const Color(0xFF4CAF50).value, 
+          colorValue: const Color(0xFF4CAF50).toARGB32(), // Updated: Removed deprecated .value
           iconCodePoint: Icons.directions_bus.codePoint,
           monthlyLimit: 500.0,
         ),
         CategoryItem(
           id: uuid.v4(),
           name: "Food",
-          colorValue: const Color(0xFFFF9800).value, 
+          colorValue: const Color(0xFFFF9800).toARGB32(), // Updated: Removed deprecated .value
           iconCodePoint: Icons.restaurant.codePoint,
           monthlyLimit: 800.0,
         ),
         CategoryItem(
           id: uuid.v4(),
           name: "Entertainment",
-          colorValue: const Color(0xFF9C27B0).value, 
+          colorValue: const Color(0xFF9C27B0).toARGB32(), // Updated: Removed deprecated .value
           iconCodePoint: Icons.movie_creation_outlined.codePoint,
           monthlyLimit: 300.0,
         ),
         CategoryItem(
           id: uuid.v4(),
           name: "Other",
-          colorValue: const Color(0xFF9E9E9E).value, 
+          colorValue: const Color(0xFF9E9E9E).toARGB32(), // Updated: Removed deprecated .value
           iconCodePoint: Icons.category_outlined.codePoint,
           monthlyLimit: 200.0,
         ),
@@ -150,7 +150,7 @@ class ExpenseTrackerApp extends StatelessWidget {
           ),
         
           themeMode: currentThemeMode,
-          home: homeScreen, // Dynamic target assigned on initialize routine
+          home: homeScreen, 
         ); 
       }, 
     ); 
